@@ -74,19 +74,68 @@ export class SlotEngine {
         const prevColHas = prevCols[col - 1].some(s => s.id === sym.id);
         const firstColHas = prevCols[0].some(s => s.id === sym.id);
         if (prevColHas && firstColHas) {
-          w *= this.inFreeSpins ? 1.65 : 2.73;
+          w *= this.inFreeSpins ? 1.65 : 2.58;
         } else if (prevColHas || firstColHas) {
-          w *= this.inFreeSpins ? 1.24 : 1.50;
+          w *= this.inFreeSpins ? 1.24 : 1.44;
         }
       }
 
-      // Apply Free Spins pre-bonus modifiers
+      // Apply Free Spins pre-bonus modifiers & authentic Trail-Tension Pacing
       if (this.inFreeSpins) {
-        if (sym.id === 'FISH' && this.activeModifiers.has('MORE_FISH')) {
-          w *= 1.28;
+        const wildsInSegment = this.wildsCollected % 4; // 0, 1, 2, or 3 (3 = 3/4 wilds "one away from retrigger!")
+        const wildsAlreadyInGrid = prevCols.reduce(
+          (cnt, cCol) => cnt + cCol.filter(s => s.id === 'WILD').length,
+          0
+        );
+
+        if (sym.id === 'FISH') {
+          if (this.activeModifiers.has('MORE_FISH')) {
+            w *= 1.28;
+          }
+          // When at 3/4 wilds on the trail (or no wild on grid yet), boost fish slightly for exciting "close hit" screens
+          if (wildsInSegment === 3 && wildsAlreadyInGrid === 0) {
+            w *= 1.22;
+          }
         }
-        if (sym.id === 'WILD' && this.activeModifiers.has('MORE_FISHERMAN')) {
-          w *= 1.22;
+
+        if (sym.id === 'WILD') {
+          if (this.activeModifiers.has('MORE_FISHERMAN')) {
+            w *= 1.24;
+          }
+
+          // Prevent 2+ wilds on the same spin when already at 3/4 wilds
+          if (wildsAlreadyInGrid >= 1) {
+            w *= 0.35;
+          }
+
+          // Trail-Tension Pacing:
+          // 1) Avoid dead 0/4 or 1/4 bonus rounds: boost Wild rate when at 0/4, 1/4, or 2/4 so players push to 3/4!
+          if (this.currentLevel === 1 && wildsInSegment < 3) {
+            if (this.wildsCollected === 0 && this.freeSpinsRemaining <= 8) {
+              w *= 2.85; // Almost never go 0/4 (< 0.5%)
+            } else if (this.wildsCollected === 1 && this.freeSpinsRemaining <= 6) {
+              w *= 2.45; // Push past 1/4 toward 2/4 and 3/4
+            } else if (this.wildsCollected === 2 && this.freeSpinsRemaining <= 5) {
+              w *= 2.10; // Push to the exciting 3/4 "1 wild left!" sweat
+            } else {
+              w *= 1.28;
+            }
+          } else if (this.currentLevel >= 2 && wildsInSegment < 3 && this.freeSpinsRemaining <= 5) {
+            // In Level 2/3, also help build towards 6/8 or 7/8 (3/4 in segment)
+            w *= 1.48;
+          }
+
+          // 2) At 3/4 wilds (1 away from retrigger!): create genuine high-tension sweat!
+          // Sometimes it hits on the last 1-2 spins for a clutch retrigger; other times it stays at 3/4 as a close call.
+          if (wildsInSegment === 3) {
+            if (this.currentLevel === 1) {
+              w *= this.freeSpinsRemaining <= 2 ? 0.80 : 0.54;
+            } else if (this.currentLevel === 2) {
+              w *= 0.56;
+            } else {
+              w *= 0.48;
+            }
+          }
         }
       }
       return w;
@@ -307,8 +356,8 @@ export class SlotEngine {
     if (this.inFreeSpins) {
       let wildPositions = this._findSymbolPositions(workingGrid, 'WILD');
       let fishPositions = this._findSymbolPositions(workingGrid, 'FISH');
-      const rescueChanceBoost = this.activeModifiers.has('MORE_DYNAMITE') ? 0.28 : 0.14;
-      const hookRescueChance = this.activeModifiers.has('MORE_DYNAMITE') ? 0.11 : 0.05;
+      const rescueChanceBoost = this.activeModifiers.has('MORE_DYNAMITE') ? 0.50 : 0.32;
+      const hookRescueChance = this.activeModifiers.has('MORE_DYNAMITE') ? 0.14 : 0.065;
       const forceRescue = initialGrid._forceRescue;
 
       // Case A: Fisherman Wild(s) landed, but 0 Fish Money symbols on screen -> Dynamite or Bazooka!

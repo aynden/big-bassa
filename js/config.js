@@ -43,7 +43,7 @@ export const SYMBOLS = {
     type: 'wild',
     image: 'assets/images/symbols/wild_fisherman.png',
     baseWeight: 0, // Authentic Big Bass Splash: Fisherman Wild only appears during Free Spins!
-    freeSpinWeight: 1.48, // Calibrated for ~96.7% RTP (~14.8% natural Wild chance per spin, ~16.1% total with Hook Rescue)
+    freeSpinWeight: 1.58, // Base Free Spins weight + dynamic trail-tension pacing in SlotEngine
     payouts: { 3: 5, 4: 25, 5: 200 },
     description: 'Appears on all reels during Free Spins. Substitutes for all symbols except Scatter and collects all Fish Money values on screen!'
   },
@@ -52,7 +52,7 @@ export const SYMBOLS = {
     name: 'Hooked Bass Scatter',
     type: 'scatter',
     image: 'assets/images/symbols/scatter_bass.png',
-    baseWeight: 3.56, // ~1 in 115 base spins triggers Free Spins (including 2-Scatter Nudge/Hook)
+    baseWeight: 2.52, // ~1 in 210 base spins triggers Free Spins (~95x avg bonus = ~45.5% Bonus RTP + ~51.0% Base RTP = ~96.5% Total RTP)
     freeSpinWeight: 0, // Scatters do not land during Free Spins
     payouts: {},
     description: '3, 4, or 5 Scatters trigger 10, 15, or 20 Free Spins! 2 Scatters can trigger Nudge Respin or Hook Pull.'
@@ -102,7 +102,7 @@ export const SYMBOLS = {
     shoalImage: 'assets/images/symbols/fish_money.png',
     goldenImage: 'assets/images/symbols/fish_golden.png',
     baseWeight: 12,
-    freeSpinWeight: 12.8,
+    freeSpinWeight: 14.5,
     payouts: { 3: 1, 4: 5, 5: 20 },
     description: 'Takes a random cash value (2x to 5000x total bet) on every spin. Collected by Fisherman Wild during Free Spins!'
   },
@@ -170,18 +170,18 @@ export const SYMBOLS = {
 
 /**
  * Weighted Fish Money Multipliers (Multipliers of Total Bet)
- * Calibrated to authentic Big Bass Splash high-volatility distribution (Average ~8.1x per fish)
+ * Balanced so fish catches feel rewarding (~8.8x avg per fish) with exciting 20x-50x medium-big catches
  */
 export const FISH_MONEY_VALUES = [
-  { multiplier: 2,    weight: 4400, tier: 'small' },
-  { multiplier: 5,    weight: 2850, tier: 'small' },
-  { multiplier: 10,   weight: 1450, tier: 'medium' },
-  { multiplier: 15,   weight: 640,  tier: 'medium' },
-  { multiplier: 20,   weight: 360,  tier: 'medium' },
-  { multiplier: 25,   weight: 165,  tier: 'large' },
-  { multiplier: 50,   weight: 85,   tier: 'large' },
-  { multiplier: 100,  weight: 32,   tier: 'huge' },
-  { multiplier: 200,  weight: 11,   tier: 'huge' },
+  { multiplier: 2,    weight: 3800, tier: 'small' },
+  { multiplier: 5,    weight: 3000, tier: 'small' },
+  { multiplier: 10,   weight: 1650, tier: 'medium' },
+  { multiplier: 15,   weight: 780,  tier: 'medium' },
+  { multiplier: 20,   weight: 430,  tier: 'medium' },
+  { multiplier: 25,   weight: 190,  tier: 'large' },
+  { multiplier: 50,   weight: 95,   tier: 'large' },
+  { multiplier: 100,  weight: 36,   tier: 'huge' },
+  { multiplier: 200,  weight: 12,   tier: 'huge' },
   { multiplier: 500,  weight: 4.5,  tier: 'mega' },
   { multiplier: 1000, weight: 1.6,  tier: 'mega' },
   { multiplier: 2500, weight: 0.6,  tier: 'jackpot' },
