@@ -4,18 +4,23 @@
   "provider": "Pragmatic Play / Reel Kingdom Tribute",
   "background": "assets/images/background_lake.jpg",
   "symbols": {
-    "WILD": "assets/images/symbols/wild_fisherman.jpg",
-    "SCATTER": "assets/images/symbols/scatter_bass.jpg",
-    "TRUCK": "assets/images/symbols/monster_truck.jpg",
-    "ROD": "assets/images/symbols/fishing_rod.jpg",
-    "DRAGONFLY": "assets/images/symbols/dragonfly.jpg",
-    "TACKLE": "assets/images/symbols/tackle_box.jpg",
-    "FISH": "assets/images/symbols/fish_money.jpg"
+    "WILD": "assets/images/symbols/wild_fisherman.png",
+    "SCATTER": "assets/images/symbols/scatter_bass.png",
+    "TRUCK": "assets/images/symbols/monster_truck.png",
+    "ROD": "assets/images/symbols/fishing_rod.png",
+    "DRAGONFLY": "assets/images/symbols/dragonfly.png",
+    "TACKLE": "assets/images/symbols/tackle_box.png",
+    "FISH": "assets/images/symbols/fish_single.png",
+    "FISH_SHOAL": "assets/images/symbols/fish_money.png",
+    "FISH_GOLDEN": "assets/images/symbols/fish_golden.png"
   },
   "audio": {
-    "bgm_base": "assets/audio/bgm_base.mp3",
-    "bgm_freespins": "assets/audio/bgm_freespins.mp3",
-    "sfx_spin": "assets/audio/sfx_spin.mp3",
-    "sfx_win": "assets/audio/sfx_win.mp3"
+    "bgm_base": "assets/audio/bgm_base.ogg",
+    "bgm_freespins": "assets/audio/bgm_freespins.ogg",
+    "sfx_splash": "assets/audio/sfx_splash.ogg",
+    "sfx_bubbles": "assets/audio/sfx_bubbles.ogg",
+    "sfx_explosion": "assets/audio/sfx_explosion.ogg",
+    "sfx_coins": "assets/audio/sfx_coins.ogg",
+    "sfx_coin_drop": "assets/audio/sfx_coin_drop.ogg"
   }
 }

@@ -1,6 +1,18 @@
 /**
- * Big Bass Splash - Web Audio API Country-Rock Banjo Synthesizer & Sound Effects Engine
- * Also supports loading external audio files from assets/audio/ if present.
+ * Big Bass Splash™ — Real Sampled Open-Source Audio & Sound Effects Engine
+ *
+ * Uses real recorded Creative Commons / Public Domain audio samples downloaded from Wikimedia Commons
+ * into assets/audio/:
+ *  - bgm_base.ogg: Real recorded acoustic folk & country guitar/banjo backing track
+ *  - bgm_freespins.ogg: Real recorded fast 5-string bluegrass banjo roll loop for Free Spins
+ *  - sfx_splash.ogg: Real recorded water splash audio
+ *  - sfx_bubbles.ogg: Real recorded underwater bubbling audio
+ *  - sfx_explosion.ogg: Real recorded dynamite / bazooka blast explosion audio
+ *  - sfx_coins.ogg: Real recorded coins jingling & cascading audio
+ *  - sfx_coin_drop.ogg: Real recorded single coin / token drop impact
+ *
+ * All audio buffers are decoded via Web Audio API for zero-latency polyphonic playback,
+ * layered with crisp casino bell/reel transients so every interaction feels physical and responsive.
  */
 
 export class AudioEngine {
@@ -9,38 +21,107 @@ export class AudioEngine {
     this.masterGain = null;
     this.musicGain = null;
     this.sfxGain = null;
+
     this.isMuted = false;
     this.musicEnabled = true;
     this.sfxEnabled = true;
-    this.volume = 0.75;
+    this.volume = 0.80;
+
     this.isPlayingBGM = false;
     this.bgmMode = 'base'; // 'base' | 'freespins'
-    this.bgmTimer = null;
-    this.stepIndex = 0;
+    this.activeBgmSource = null;
+
+    // Decoded AudioBuffer cache from real .ogg files in assets/audio/
+    this.buffers = {};
+    this.loadingPromise = null;
   }
 
   init() {
-    if (this.ctx) {
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume();
-      }
-      return;
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+
+      this.ctx = new AudioCtx();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = this.isMuted ? 0 : this.volume;
+      this.masterGain.connect(this.ctx.destination);
+
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = 0.38;
+      this.musicGain.connect(this.masterGain);
+
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = 0.90;
+      this.sfxGain.connect(this.masterGain);
     }
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
 
-    this.ctx = new AudioCtx();
-    this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.value = this.isMuted ? 0 : this.volume;
-    this.masterGain.connect(this.ctx.destination);
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
 
-    this.musicGain = this.ctx.createGain();
-    this.musicGain.gain.value = 0.28;
-    this.musicGain.connect(this.masterGain);
+    if (!this.loadingPromise) {
+      this.loadingPromise = this._loadAllAudioSamples();
+    }
+  }
 
-    this.sfxGain = this.ctx.createGain();
-    this.sfxGain.gain.value = 0.85;
-    this.sfxGain.connect(this.masterGain);
+  async _loadAllAudioSamples() {
+    const files = {
+      bgm_base: 'assets/audio/bgm_base.ogg',
+      bgm_freespins: 'assets/audio/bgm_freespins.ogg',
+      splash: 'assets/audio/sfx_splash.ogg',
+      bubbles: 'assets/audio/sfx_bubbles.ogg',
+      explosion: 'assets/audio/sfx_explosion.ogg',
+      coins: 'assets/audio/sfx_coins.ogg',
+      coin_drop: 'assets/audio/sfx_coin_drop.ogg'
+    };
+
+    await Promise.all(
+      Object.entries(files).map(async ([key, url]) => {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) return;
+          const arrayBuf = await resp.arrayBuffer();
+          const audioBuf = await this.ctx.decodeAudioData(arrayBuf);
+          this.buffers[key] = audioBuf;
+        } catch (err) {
+          console.warn(`Audio sample ${url} load fallback:`, err);
+        }
+      })
+    );
+
+    // If BGM was requested while buffers were decoding, start playing the real track immediately
+    if (this.isPlayingBGM && this.musicEnabled) {
+      this._playSampledBGM(this.bgmMode);
+    }
+  }
+
+  /**
+   * Play a decoded real audio buffer (or a specific slice of it) with optional pitch/rate & gain
+   */
+  _playBuffer(key, { offset = 0, duration = null, rate = 1.0, gainVal = 0.8, loop = false, targetGainNode = null } = {}) {
+    if (!this.ctx || !this.buffers[key]) return null;
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers[key];
+    source.playbackRate.value = rate;
+    source.loop = loop;
+
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+
+    source.connect(g);
+    g.connect(targetGainNode || this.sfxGain);
+
+    const now = this.ctx.currentTime;
+    if (duration !== null && !loop) {
+      // Smooth fade-out at end of slice
+      g.gain.setValueAtTime(gainVal, now + Math.max(0.01, duration - 0.08));
+      g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      source.start(now, offset, duration);
+    } else {
+      source.start(now, offset);
+    }
+
+    return source;
   }
 
   setMute(muted) {
@@ -67,198 +148,121 @@ export class AudioEngine {
   }
 
   /**
-   * Country-Rock Banjo & Acoustic Bass Sequencer
+   * Start Real Recorded Country / Banjo BGM Loop
    */
   startBGM(mode = 'base') {
     this.init();
     this.bgmMode = mode;
     if (!this.musicEnabled || !this.ctx) return;
-    if (this.isPlayingBGM) {
-      clearInterval(this.bgmTimer);
-    }
     this.isPlayingBGM = true;
+    this._playSampledBGM(mode);
+  }
 
-    // Country G-Major / E-minor pentatonic banjo roll notes (Hz)
-    const baseBanjoNotes = [
-      196.00, 246.94, 293.66, 392.00, 329.63, 293.66, 246.94, 392.00, // G chord roll
-      261.63, 329.63, 392.00, 523.25, 440.00, 392.00, 329.63, 261.63, // C chord roll
-      196.00, 246.94, 293.66, 392.00, 440.00, 392.00, 293.66, 246.94, // G chord roll
-      293.66, 369.99, 440.00, 587.33, 440.00, 369.99, 293.66, 246.94  // D chord roll
-    ];
+  _playSampledBGM(mode) {
+    if (this.activeBgmSource) {
+      try {
+        this.activeBgmSource.stop();
+      } catch (_) {}
+      this.activeBgmSource = null;
+    }
 
-    const freeSpinsBanjoNotes = [
-      293.66, 392.00, 493.88, 587.33, 659.25, 587.33, 493.88, 392.00,
-      329.63, 392.00, 523.25, 659.25, 587.33, 523.25, 392.00, 329.63,
-      369.99, 440.00, 587.33, 739.99, 659.25, 587.33, 440.00, 369.99,
-      392.00, 493.88, 587.33, 783.99, 659.25, 587.33, 493.88, 392.00
-    ];
-
-    const bassLine = [98.00, 98.00, 130.81, 130.81, 98.00, 98.00, 146.83, 123.47];
-    const tempoMs = mode === 'freespins' ? 145 : 175;
-
-    this.bgmTimer = setInterval(() => {
-      if (!this.musicEnabled || this.isMuted || !this.ctx || this.ctx.state !== 'running') return;
-      const notes = this.bgmMode === 'freespins' ? freeSpinsBanjoNotes : baseBanjoNotes;
-      const noteFreq = notes[this.stepIndex % notes.length];
-
-      // Pluck banjo string
-      this._pluckBanjo(noteFreq, 0.14);
-
-      // Bass note on every 4th step
-      if (this.stepIndex % 4 === 0) {
-        const bassFreq = bassLine[Math.floor(this.stepIndex / 4) % bassLine.length];
-        this._playAcousticBass(bassFreq, 0.35);
-      }
-
-      // Country snare brush on backbeat
-      if (this.stepIndex % 4 === 2) {
-        this._playBrushHit(0.05);
-      }
-
-      this.stepIndex++;
-    }, tempoMs);
+    const key = mode === 'freespins' ? 'bgm_freespins' : 'bgm_base';
+    if (this.buffers[key]) {
+      this.activeBgmSource = this._playBuffer(key, {
+        gainVal: mode === 'freespins' ? 0.85 : 0.75,
+        loop: true,
+        targetGainNode: this.musicGain
+      });
+    }
   }
 
   stopBGM() {
     this.isPlayingBGM = false;
-    if (this.bgmTimer) {
-      clearInterval(this.bgmTimer);
-      this.bgmTimer = null;
+    if (this.activeBgmSource) {
+      try {
+        this.activeBgmSource.stop();
+      } catch (_) {}
+      this.activeBgmSource = null;
     }
-  }
-
-  _pluckBanjo(freq, duration) {
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const osc2 = this.ctx.createOscillator();
-    const filter = this.ctx.createBiquadFilter();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(freq, now);
-
-    // Metallic banjo twang overtone
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(freq * 2.0, now);
-
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(freq * 3.2, now);
-    filter.Q.setValueAtTime(2.5, now);
-
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.28, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-    osc.connect(filter);
-    osc2.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.musicGain);
-
-    osc.start(now);
-    osc2.start(now);
-    osc.stop(now + duration);
-    osc2.stop(now + duration);
-  }
-
-  _playAcousticBass(freq, duration) {
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, now);
-
-    gain.gain.setValueAtTime(0.32, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-    osc.connect(gain);
-    gain.connect(this.musicGain);
-    osc.start(now);
-    osc.stop(now + duration);
-  }
-
-  _playBrushHit(duration) {
-    const now = this.ctx.currentTime;
-    const bufferSize = this.ctx.sampleRate * duration;
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
-    }
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1800;
-
-    const gain = this.ctx.createGain();
-    gain.gain.value = 0.09;
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.musicGain);
-    noise.start(now);
   }
 
   /**
-   * Sound Effects
+   * Real Water Bubbling + Splash when Reels Spin
    */
   playSpinStart() {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
 
-    // Water splash + fishing reel whir
-    for (let i = 0; i < 5; i++) {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(240 + i * 75, now + i * 0.03);
-      osc.frequency.exponentialRampToValueAtTime(520 + i * 90, now + i * 0.03 + 0.08);
+    // Play a 0.65s slice of real underwater bubbling
+    if (this.buffers.bubbles) {
+      this._playBuffer('bubbles', {
+        offset: 0.4,
+        duration: 0.65,
+        rate: 1.15,
+        gainVal: 0.65
+      });
+    }
 
-      gain.gain.setValueAtTime(0.14, now + i * 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.03 + 0.09);
-
-      osc.connect(gain);
-      gain.connect(this.sfxGain);
-      osc.start(now + i * 0.03);
-      osc.stop(now + i * 0.03 + 0.09);
+    // Play a short 0.35s slice of real water splash
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 0.25,
+        duration: 0.38,
+        rate: 1.25,
+        gainVal: 0.45
+      });
     }
   }
 
-  playReelStop(reelIndex = 0, hasScatter = false) {
+  /**
+   * Reel Stop Thud + Real Splash / Bell when Scatter or Fisherman Wild lands
+   */
+  playReelStop(reelIndex = 0, hasSpecial = false) {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
     const now = this.ctx.currentTime;
 
-    // Deep water bubble thud
+    // Short water bubble thud on every reel stop
+    if (this.buffers.coin_drop) {
+      this._playBuffer('coin_drop', {
+        offset: 0,
+        duration: 0.22,
+        rate: 0.72 + reelIndex * 0.06,
+        gainVal: 0.55
+      });
+    }
+
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sine';
-    const baseFreq = 125 + reelIndex * 12;
-    osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(52, now + 0.11);
-
-    gain.gain.setValueAtTime(0.32, now);
+    osc.frequency.setValueAtTime(125 + reelIndex * 10, now);
+    osc.frequency.exponentialRampToValueAtTime(48, now + 0.11);
+    gain.gain.setValueAtTime(0.28, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(now);
     osc.stop(now + 0.12);
 
-    // If a Scatter landed on this reel, play exciting bell + splash chime
-    if (hasScatter) {
+    // If a Scatter Bass or Fisherman Wild landed, trigger a real water splash + metallic bell!
+    if (hasSpecial) {
+      if (this.buffers.splash) {
+        this._playBuffer('splash', {
+          offset: 1.1,
+          duration: 0.55,
+          rate: 1.05 + reelIndex * 0.05,
+          gainVal: 0.75
+        });
+      }
+
       const bell = this.ctx.createOscillator();
       const bellGain = this.ctx.createGain();
       bell.type = 'triangle';
       const scatterFreq = 587.33 * Math.pow(1.12, reelIndex);
       bell.frequency.setValueAtTime(scatterFreq, now);
       bell.frequency.setValueAtTime(scatterFreq * 1.25, now + 0.06);
-
-      bellGain.gain.setValueAtTime(0.35, now);
+      bellGain.gain.setValueAtTime(0.32, now);
       bellGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
       bell.connect(bellGain);
       bellGain.connect(this.sfxGain);
       bell.start(now);
@@ -266,9 +270,23 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Real Coin Cascade + Win Fanfare
+   */
   playWinChime(isBig = false) {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
+
+    // Play real recorded coins jingling & cascading!
+    if (this.buffers.coins) {
+      this._playBuffer('coins', {
+        offset: 0.1,
+        duration: isBig ? 1.8 : 0.85,
+        rate: isBig ? 1.0 : 1.15,
+        gainVal: 0.85
+      });
+    }
+
     const now = this.ctx.currentTime;
     const chord = isBig
       ? [392.00, 493.88, 587.33, 783.99, 987.77, 1174.66]
@@ -279,107 +297,142 @@ export class AudioEngine {
       const gain = this.ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, now + idx * 0.065);
-
-      gain.gain.setValueAtTime(0.24, now + idx * 0.065);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.065 + 0.42);
-
+      gain.gain.setValueAtTime(0.20, now + idx * 0.065);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.065 + 0.40);
       osc.connect(gain);
       gain.connect(this.sfxGain);
       osc.start(now + idx * 0.065);
-      osc.stop(now + idx * 0.065 + 0.42);
+      osc.stop(now + idx * 0.065 + 0.40);
     });
   }
 
+  /**
+   * Real Water Splash + Coin Jingling when Fisherman reels in a Money Fish
+   */
   playFishCollect() {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
 
-    // Fishing reel drag zing + coin ding
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 2.2,
+        duration: 0.45,
+        rate: 1.2,
+        gainVal: 0.70
+      });
+    }
+
+    if (this.buffers.coins) {
+      this._playBuffer('coins', {
+        offset: 0.2,
+        duration: 0.55,
+        rate: 1.25,
+        gainVal: 0.75
+      });
+    }
+
+    // Fishing reel drag zing
+    const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(420, now);
-    osc.frequency.exponentialRampToValueAtTime(1280, now + 0.18);
-
-    gain.gain.setValueAtTime(0.22, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-
+    osc.frequency.setValueAtTime(460, now);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.16);
+    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(now);
-    osc.stop(now + 0.22);
+    osc.stop(now + 0.18);
   }
 
+  /**
+   * Real Recorded Explosion + Water Splash for Dynamite & Bazooka Features
+   */
   playExplosion() {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const duration = 0.55;
-    const bufferSize = this.ctx.sampleRate * duration;
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+
+    if (this.buffers.explosion) {
+      this._playBuffer('explosion', {
+        offset: 0,
+        duration: 1.1,
+        rate: 1.0,
+        gainVal: 0.95
+      });
     }
 
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(650, now);
-    filter.frequency.exponentialRampToValueAtTime(80, now + duration);
-
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.65, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.sfxGain);
-    noise.start(now);
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 1.0,
+        duration: 0.65,
+        rate: 0.95,
+        gainVal: 0.75
+      });
+    }
   }
 
+  /**
+   * Real Water Splash & Line Whoosh for Hook Feature
+   */
   playHookPull() {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(180, now);
-    osc.frequency.exponentialRampToValueAtTime(760, now + 0.35);
 
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 3.1,
+        duration: 0.6,
+        rate: 1.05,
+        gainVal: 0.80
+      });
+    }
 
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-    osc.start(now);
-    osc.stop(now + 0.38);
+    if (this.buffers.bubbles) {
+      this._playBuffer('bubbles', {
+        offset: 1.2,
+        duration: 0.5,
+        rate: 1.3,
+        gainVal: 0.60
+      });
+    }
   }
 
+  /**
+   * Bonus Trigger Celebration Fanfare + Real Coins & Splash
+   */
   playBonusTrigger() {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
+
+    if (this.buffers.coins) {
+      this._playBuffer('coins', {
+        offset: 0,
+        duration: 2.0,
+        rate: 1.0,
+        gainVal: 0.90
+      });
+    }
+
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 1.1,
+        duration: 0.8,
+        rate: 1.0,
+        gainVal: 0.75
+      });
+    }
+
     const now = this.ctx.currentTime;
     const fanfare = [392.00, 523.25, 659.25, 783.99, 659.25, 783.99, 1046.50];
     fanfare.forEach((freq, i) => {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      osc.type = 'sawtooth';
+      osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, now + i * 0.11);
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 2400;
-
-      gain.gain.setValueAtTime(0.25, now + i * 0.11);
+      gain.gain.setValueAtTime(0.22, now + i * 0.11);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.11 + 0.35);
-
-      osc.connect(filter);
-      filter.connect(gain);
+      osc.connect(gain);
       gain.connect(this.sfxGain);
       osc.start(now + i * 0.11);
       osc.stop(now + i * 0.11 + 0.35);
@@ -389,19 +442,14 @@ export class AudioEngine {
   playButtonClick() {
     this.init();
     if (!this.sfxEnabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(640, now);
-    osc.frequency.exponentialRampToValueAtTime(320, now + 0.04);
 
-    gain.gain.setValueAtTime(0.15, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
-
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-    osc.start(now);
-    osc.stop(now + 0.045);
+    if (this.buffers.coin_drop) {
+      this._playBuffer('coin_drop', {
+        offset: 0.02,
+        duration: 0.14,
+        rate: 1.65,
+        gainVal: 0.45
+      });
+    }
   }
 }
