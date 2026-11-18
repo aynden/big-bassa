@@ -41,7 +41,7 @@ export const SYMBOLS = {
     id: 'WILD',
     name: 'Fisherman Wild',
     type: 'wild',
-    image: 'assets/images/symbols/wild_fisherman.jpg',
+    image: 'assets/images/symbols/wild_fisherman.png',
     baseWeight: 0, // Authentic Big Bass Splash: Fisherman Wild only appears during Free Spins!
     freeSpinWeight: 1.85, // Calibrated so a Fisherman lands roughly once every 3.5-4 free spins
     payouts: { 3: 5, 4: 25, 5: 200 },
@@ -51,7 +51,7 @@ export const SYMBOLS = {
     id: 'SCATTER',
     name: 'Hooked Bass Scatter',
     type: 'scatter',
-    image: 'assets/images/symbols/scatter_bass.jpg',
+    image: 'assets/images/symbols/scatter_bass.png',
     baseWeight: 4,
     freeSpinWeight: 0, // Scatters do not land during Free Spins
     payouts: {},
@@ -61,7 +61,7 @@ export const SYMBOLS = {
     id: 'TRUCK',
     name: 'Monster Truck',
     type: 'high',
-    image: 'assets/images/symbols/monster_truck.jpg',
+    image: 'assets/images/symbols/monster_truck.png',
     baseWeight: 5,
     freeSpinWeight: 5,
     payouts: { 2: 0.5, 3: 5, 4: 20, 5: 200 },
@@ -71,7 +71,7 @@ export const SYMBOLS = {
     id: 'ROD',
     name: 'Fishing Rod & Reel',
     type: 'high',
-    image: 'assets/images/symbols/fishing_rod.jpg',
+    image: 'assets/images/symbols/fishing_rod.png',
     baseWeight: 7,
     freeSpinWeight: 7,
     payouts: { 3: 3, 4: 15, 5: 100 }
@@ -80,7 +80,7 @@ export const SYMBOLS = {
     id: 'DRAGONFLY',
     name: 'Emerald Dragonfly',
     type: 'high',
-    image: 'assets/images/symbols/dragonfly.jpg',
+    image: 'assets/images/symbols/dragonfly.png',
     baseWeight: 9,
     freeSpinWeight: 9,
     payouts: { 3: 2, 4: 10, 5: 50 }
@@ -89,7 +89,7 @@ export const SYMBOLS = {
     id: 'TACKLE',
     name: 'Tackle Box',
     type: 'high',
-    image: 'assets/images/symbols/tackle_box.jpg',
+    image: 'assets/images/symbols/tackle_box.png',
     baseWeight: 9,
     freeSpinWeight: 9,
     payouts: { 3: 2, 4: 10, 5: 50 }
@@ -98,7 +98,9 @@ export const SYMBOLS = {
     id: 'FISH',
     name: 'Fish Money Symbol',
     type: 'money',
-    image: 'assets/images/symbols/fish_money.jpg',
+    image: 'assets/images/symbols/fish_single.png',
+    shoalImage: 'assets/images/symbols/fish_money.png',
+    goldenImage: 'assets/images/symbols/fish_golden.png',
     baseWeight: 15,
     freeSpinWeight: 18,
     payouts: { 3: 1, 4: 5, 5: 20 },

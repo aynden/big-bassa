@@ -1,0 +1,7 @@
+services:
+  big-bass-splash:
+    build: .
+    container_name: big-bass-splash
+    ports:
+      - "8080:80"
+    restart: unless-stopped
