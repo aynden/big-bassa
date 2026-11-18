@@ -53,9 +53,9 @@ export class SlotEngine {
   }
 
   /**
-   * Pick a single symbol cell taking into account Base vs Free Spins and active modifiers
+   * Pick a single symbol cell taking into account Base vs Free Spins, virtual reel clumping, and active modifiers
    */
-  rollSymbol(col, existingColSymbols = []) {
+  rollSymbol(col, existingColSymbols = [], prevCols = []) {
     const symbolList = Object.values(SYMBOLS);
     const weights = symbolList.map(sym => {
       let w = this.inFreeSpins ? sym.freeSpinWeight : sym.baseWeight;
@@ -69,13 +69,24 @@ export class SlotEngine {
         return 0;
       }
 
+      // Authentic virtual reel-strip clumping: symbols present on Reel 1-2 have stacked affinity on adjacent reels
+      if (sym.type !== 'scatter' && sym.type !== 'wild' && col > 0 && prevCols.length >= col) {
+        const prevColHas = prevCols[col - 1].some(s => s.id === sym.id);
+        const firstColHas = prevCols[0].some(s => s.id === sym.id);
+        if (prevColHas && firstColHas) {
+          w *= this.inFreeSpins ? 1.65 : 2.73;
+        } else if (prevColHas || firstColHas) {
+          w *= this.inFreeSpins ? 1.24 : 1.50;
+        }
+      }
+
       // Apply Free Spins pre-bonus modifiers
       if (this.inFreeSpins) {
         if (sym.id === 'FISH' && this.activeModifiers.has('MORE_FISH')) {
-          w *= 1.45;
+          w *= 1.28;
         }
         if (sym.id === 'WILD' && this.activeModifiers.has('MORE_FISHERMAN')) {
-          w *= 1.32;
+          w *= 1.22;
         }
       }
       return w;
@@ -118,7 +129,7 @@ export class SlotEngine {
     for (let c = 0; c < this.reels; c++) {
       const col = [];
       for (let r = 0; r < this.rows; r++) {
-        col.push(this.rollSymbol(c, col));
+        col.push(this.rollSymbol(c, col, grid));
       }
       grid.push(col);
     }
@@ -232,7 +243,7 @@ export class SlotEngine {
         const canNudge = scatters.every(pos => pos.row < 2); // Neither scatter is on bottom row (row 2)
         const forceType = initialGrid._forceSecondChance;
 
-        if (forceType === 'NUDGE' || (!forceType && canNudge && Math.random() < 0.45)) {
+        if (forceType === 'NUDGE' || (!forceType && canNudge && Math.random() < 0.25)) {
           // Nudge Respin: Scatters move down 1 row, other reels respin!
           const nudgedGrid = this._cloneGrid(workingGrid);
           const lockedCols = new Set(scatters.map(s => s.col));
@@ -244,13 +255,13 @@ export class SlotEngine {
             nudgedGrid[s.col][0] = this.rollSymbol(s.col, nudgedGrid[s.col]);
           }
 
-          // Respin unlocked columns with high chance of landing the 3rd scatter
+          // Respin unlocked columns with chance of landing the 3rd scatter
           let landedThird = false;
           for (let c = 0; c < this.reels; c++) {
             if (!lockedCols.has(c)) {
               const col = [];
               for (let r = 0; r < this.rows; r++) {
-                if (!landedThird && (forceType === 'NUDGE' || Math.random() < 0.28)) {
+                if (!landedThird && (forceType === 'NUDGE' || Math.random() < 0.22)) {
                   col.push(this.createCell('SCATTER'));
                   landedThird = true;
                 } else {
@@ -270,7 +281,7 @@ export class SlotEngine {
             toGrid: this._cloneGrid(nudgedGrid)
           });
           workingGrid = nudgedGrid;
-        } else if (forceType === 'HOOK' || (!forceType && Math.random() < 0.35)) {
+        } else if (forceType === 'HOOK' || (!forceType && Math.random() < 0.14)) {
           // Hook Pull: A fishing hook pulls one of the non-scatter reels up to reveal a 3rd Scatter!
           const scatterCols = new Set(scatters.map(s => s.col));
           const availableCols = [0, 1, 2, 3, 4].filter(c => !scatterCols.has(c));
@@ -296,8 +307,8 @@ export class SlotEngine {
     if (this.inFreeSpins) {
       let wildPositions = this._findSymbolPositions(workingGrid, 'WILD');
       let fishPositions = this._findSymbolPositions(workingGrid, 'FISH');
-      const rescueChanceBoost = this.activeModifiers.has('MORE_DYNAMITE') ? 0.42 : 0.20;
-      const hookRescueChance = this.activeModifiers.has('MORE_DYNAMITE') ? 0.18 : 0.09;
+      const rescueChanceBoost = this.activeModifiers.has('MORE_DYNAMITE') ? 0.28 : 0.14;
+      const hookRescueChance = this.activeModifiers.has('MORE_DYNAMITE') ? 0.11 : 0.05;
       const forceRescue = initialGrid._forceRescue;
 
       // Case A: Fisherman Wild(s) landed, but 0 Fish Money symbols on screen -> Dynamite or Bazooka!
@@ -314,7 +325,7 @@ export class SlotEngine {
                 ? 'DYNAMITE'
                 : 'BAZOOKA';
 
-        const countToSpawn = 3 + Math.floor(Math.random() * 3); // 3 to 5 money fish
+        const countToSpawn = 2 + Math.floor(Math.random() * 3); // 2 to 4 money fish
         const candidates = [];
         for (let c = 0; c < this.reels; c++) {
           for (let r = 0; r < this.rows; r++) {
@@ -464,15 +475,15 @@ export class SlotEngine {
   /**
    * Roll 0 to 5 pre-bonus modifiers when Free Spins are triggered
    */
-  rollPreBonusModifiers(guaranteedMin = 1) {
-    // Authentic Big Bass Splash picks 0 to 5 modifiers before Free Spins begin.
-    // For awesome player experience we award 1 to 5 modifiers with weighted probability.
+  rollPreBonusModifiers(guaranteedMin = 0) {
+    // Authentic Big Bass Splash picks 0 to 5 modifiers before Free Spins begin
     const weights = [
-      { count: 1, w: 30 },
-      { count: 2, w: 38 },
-      { count: 3, w: 20 },
-      { count: 4, w: 8 },
-      { count: 5, w: 4 }
+      { count: 0, w: 22 },
+      { count: 1, w: 38 },
+      { count: 2, w: 25 },
+      { count: 3, w: 10 },
+      { count: 4, w: 3.5 },
+      { count: 5, w: 1.5 }
     ];
     const totalW = weights.reduce((s, i) => s + i.w, 0);
     let r = Math.random() * totalW;
