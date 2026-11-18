@@ -142,7 +142,8 @@ class BigBassSplashApp {
       paytableCurrentBet: document.getElementById('paytable-current-bet'),
       paytableSymbolsGrid: document.getElementById('paytable-symbols-grid'),
 
-      // Cheat Drawer
+      // Cheat Drawer & Music Track Switcher
+      btnNextTrack: document.getElementById('btn-next-track'),
       btnToggleCheat: document.getElementById('btn-toggle-cheat'),
       cheatDrawer: document.getElementById('cheat-drawer'),
       btnCloseCheat: document.getElementById('btn-close-cheat'),
@@ -151,6 +152,21 @@ class BigBassSplashApp {
   }
 
   _bindEvents() {
+    // Update top HUD track button label whenever BGM track switches
+    this.audio.onTrackChange = track => {
+      if (this.dom.btnNextTrack) {
+        this.dom.btnNextTrack.textContent = `🎵 Track: ${track.name}`;
+      }
+    };
+
+    if (this.dom.btnNextTrack) {
+      this.dom.btnNextTrack.addEventListener('click', () => {
+        this.audio.playButtonClick();
+        const nextTrack = this.audio.nextTrack();
+        this.setStatus(`🎵 NOW PLAYING: ${nextTrack.name.toUpperCase()}`);
+      });
+    }
+
     // Start audio context on first user interaction
     const unlockAudio = () => {
       this.audio.init();
@@ -855,7 +871,7 @@ class BigBassSplashApp {
 
     // Initialize Free Spins in engine & switch BGM to high-tempo country banjo
     this.engine.startFreeSpins(triggerInfo.baseSpins, awardedModifiers);
-    this.audio.startBGM('freespins');
+    this.audio.startBGM('freespins', this.engine.currentLevel);
     this.updateTrailUI();
     this.updateHUD();
 

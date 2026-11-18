@@ -1,19 +1,34 @@
 /**
- * Big Bass Splash™ — Real Sampled Open-Source Audio & Sound Effects Engine
+ * Big Bass Splash™ — Real Sampled Open-Source Audio & Multi-Track Music Engine
  *
- * Uses real recorded Creative Commons / Public Domain audio samples downloaded from Wikimedia Commons
- * into assets/audio/:
- *  - bgm_base.ogg: Real recorded acoustic folk & country guitar/banjo backing track
- *  - bgm_freespins.ogg: Real recorded fast 5-string bluegrass banjo roll loop for Free Spins
- *  - sfx_splash.ogg: Real recorded water splash audio
- *  - sfx_bubbles.ogg: Real recorded underwater bubbling audio
- *  - sfx_explosion.ogg: Real recorded dynamite / bazooka blast explosion audio
- *  - sfx_coins.ogg: Real recorded coins jingling & cascading audio
- *  - sfx_coin_drop.ogg: Real recorded single coin / token drop impact
+ * Uses real recorded Creative Commons (CC-BY / Public Domain) studio music & SFX from Wikimedia Commons
+ * in assets/audio/:
+ *  BGM Tracks (7 selectable & dynamic tracks):
+ *   1. bgm_bama_country.mp3    — "Bama Country" (Kevin MacLeod — Full-band Country Banjo, Fiddle & Guitar)
+ *   2. bgm_guts_bourbon.mp3    — "Guts & Bourbon" (Kevin MacLeod — Monster-Truck Southern Country Rock)
+ *   3. bgm_porch_blues.mp3     — "Porch Blues" (Kevin MacLeod — Sunny Lakeside Acoustic Guitar)
+ *   4. bgm_base.ogg            — "Lakeside Folk" (Acoustic Folk Guitar & Banjo)
+ *   5. bgm_river_breakdown.mp3 — "River Valley Breakdown" (Kevin MacLeod — Fast Bluegrass Banjo & Fiddle Breakdown)
+ *   6. bgm_fiddles_mcginty.mp3 — "Fiddles McGinty" (Kevin MacLeod — Celebratory Fiddle & Banjo Hoedown for Level 2+ Retriggers)
+ *   7. bgm_freespins.ogg       — "5-String Banjo Roll" (Classic Solo Bluegrass Banjo)
  *
- * All audio buffers are decoded via Web Audio API for zero-latency polyphonic playback,
- * layered with crisp casino bell/reel transients so every interaction feels physical and responsive.
+ *  Real Recorded Sound Effects:
+ *   - sfx_splash.ogg: Real recorded water splash audio
+ *   - sfx_bubbles.ogg: Real recorded underwater bubbling audio
+ *   - sfx_explosion.ogg: Real recorded dynamite / bazooka blast explosion audio
+ *   - sfx_coins.ogg: Real recorded coins jingling & cascading audio
+ *   - sfx_coin_drop.ogg: Real recorded single coin / token drop impact
  */
+
+export const BGM_TRACKS = [
+  { id: 'bama_country',    name: 'Bama Country',           url: 'assets/audio/bgm_bama_country.mp3',    mode: 'base',      baseGain: 0.44 },
+  { id: 'guts_bourbon',    name: 'Guts & Bourbon',         url: 'assets/audio/bgm_guts_bourbon.mp3',    mode: 'base',      baseGain: 0.44 },
+  { id: 'porch_blues',     name: 'Porch Blues',            url: 'assets/audio/bgm_porch_blues.mp3',     mode: 'base',      baseGain: 0.46 },
+  { id: 'lakeside_folk',   name: 'Lakeside Folk',          url: 'assets/audio/bgm_base.ogg',            mode: 'base',      baseGain: 0.42 },
+  { id: 'river_breakdown', name: 'River Valley Breakdown', url: 'assets/audio/bgm_river_breakdown.mp3', mode: 'freespins', baseGain: 0.50 },
+  { id: 'fiddles_mcginty', name: 'Fiddles McGinty',        url: 'assets/audio/bgm_fiddles_mcginty.mp3', mode: 'freespins', baseGain: 0.50 },
+  { id: 'banjo_roll',      name: '5-String Banjo Roll',    url: 'assets/audio/bgm_freespins.ogg',       mode: 'freespins', baseGain: 0.45 }
+];
 
 export class AudioEngine {
   constructor() {
@@ -29,9 +44,13 @@ export class AudioEngine {
 
     this.isPlayingBGM = false;
     this.bgmMode = 'base'; // 'base' | 'freespins'
-    this.activeBgmSource = null;
+    this.currentBaseTrackIdx = 0; // Default: Bama Country
+    this.currentTrackId = 'bama_country';
+    this.bgmAudioElements = {}; // Cached HTML5 Audio elements for instant streaming
+    this.activeBgmAudio = null;
+    this.onTrackChange = null; // Optional UI callback when track switches
 
-    // Decoded AudioBuffer cache from real .ogg files in assets/audio/
+    // Decoded AudioBuffer cache from real .ogg SFX files in assets/audio/
     this.buffers = {};
     this.loadingPromise = null;
   }
@@ -39,23 +58,23 @@ export class AudioEngine {
   init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = this.isMuted ? 0 : this.volume;
+        this.masterGain.connect(this.ctx.destination);
 
-      this.ctx = new AudioCtx();
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = this.isMuted ? 0 : this.volume;
-      this.masterGain.connect(this.ctx.destination);
+        this.musicGain = this.ctx.createGain();
+        this.musicGain.gain.value = 0.42;
+        this.musicGain.connect(this.masterGain);
 
-      this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = 0.38;
-      this.musicGain.connect(this.masterGain);
-
-      this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.value = 0.90;
-      this.sfxGain.connect(this.masterGain);
+        this.sfxGain = this.ctx.createGain();
+        this.sfxGain.gain.value = 0.90;
+        this.sfxGain.connect(this.masterGain);
+      }
     }
 
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
 
@@ -65,9 +84,7 @@ export class AudioEngine {
   }
 
   async _loadAllAudioSamples() {
-    const files = {
-      bgm_base: 'assets/audio/bgm_base.ogg',
-      bgm_freespins: 'assets/audio/bgm_freespins.ogg',
+    const sfxFiles = {
       splash: 'assets/audio/sfx_splash.ogg',
       bubbles: 'assets/audio/sfx_bubbles.ogg',
       explosion: 'assets/audio/sfx_explosion.ogg',
@@ -75,23 +92,20 @@ export class AudioEngine {
       coin_drop: 'assets/audio/sfx_coin_drop.ogg'
     };
 
-    await Promise.all(
-      Object.entries(files).map(async ([key, url]) => {
-        try {
-          const resp = await fetch(url);
-          if (!resp.ok) return;
-          const arrayBuf = await resp.arrayBuffer();
-          const audioBuf = await this.ctx.decodeAudioData(arrayBuf);
-          this.buffers[key] = audioBuf;
-        } catch (err) {
-          console.warn(`Audio sample ${url} load fallback:`, err);
-        }
-      })
-    );
-
-    // If BGM was requested while buffers were decoding, start playing the real track immediately
-    if (this.isPlayingBGM && this.musicEnabled) {
-      this._playSampledBGM(this.bgmMode);
+    if (this.ctx) {
+      await Promise.all(
+        Object.entries(sfxFiles).map(async ([key, url]) => {
+          try {
+            const resp = await fetch(url);
+            if (!resp.ok) return;
+            const arrayBuf = await resp.arrayBuffer();
+            const audioBuf = await this.ctx.decodeAudioData(arrayBuf);
+            this.buffers[key] = audioBuf;
+          } catch (err) {
+            console.warn(`Audio sample ${url} load fallback:`, err);
+          }
+        })
+      );
     }
   }
 
@@ -113,7 +127,6 @@ export class AudioEngine {
 
     const now = this.ctx.currentTime;
     if (duration !== null && !loop) {
-      // Smooth fade-out at end of slice
       g.gain.setValueAtTime(gainVal, now + Math.max(0.01, duration - 0.08));
       g.gain.exponentialRampToValueAtTime(0.001, now + duration);
       source.start(now, offset, duration);
@@ -124,11 +137,22 @@ export class AudioEngine {
     return source;
   }
 
+  _updateBgmElementVolume() {
+    if (!this.activeBgmAudio) return;
+    const track = BGM_TRACKS.find(t => t.id === this.currentTrackId) || BGM_TRACKS[0];
+    if (this.isMuted || !this.musicEnabled) {
+      this.activeBgmAudio.volume = 0;
+    } else {
+      this.activeBgmAudio.volume = Math.max(0, Math.min(1, this.volume * track.baseGain));
+    }
+  }
+
   setMute(muted) {
     this.isMuted = muted;
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setTargetAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime, 0.03);
     }
+    this._updateBgmElementVolume();
   }
 
   setVolume(val) {
@@ -136,6 +160,7 @@ export class AudioEngine {
     if (!this.isMuted && this.masterGain && this.ctx) {
       this.masterGain.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.03);
     }
+    this._updateBgmElementVolume();
   }
 
   toggleMusic(enabled) {
@@ -147,42 +172,85 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * Start Real Recorded Country / Banjo BGM Loop
-   */
-  startBGM(mode = 'base') {
-    this.init();
-    this.bgmMode = mode;
-    if (!this.musicEnabled || !this.ctx) return;
-    this.isPlayingBGM = true;
-    this._playSampledBGM(mode);
+  getCurrentTrack() {
+    return BGM_TRACKS.find(t => t.id === this.currentTrackId) || BGM_TRACKS[0];
   }
 
-  _playSampledBGM(mode) {
-    if (this.activeBgmSource) {
-      try {
-        this.activeBgmSource.stop();
-      } catch (_) {}
-      this.activeBgmSource = null;
+  /**
+   * Cycle to the next studio music track in the 7-song library
+   */
+  nextTrack() {
+    this.init();
+    const curIdx = BGM_TRACKS.findIndex(t => t.id === this.currentTrackId);
+    const nextIdx = (curIdx + 1) % BGM_TRACKS.length;
+    const nextTrackObj = BGM_TRACKS[nextIdx];
+    if (nextTrackObj.mode === 'base') {
+      this.currentBaseTrackIdx = nextIdx;
+    }
+    this._playTrackById(nextTrackObj.id);
+    return nextTrackObj;
+  }
+
+  /**
+   * Start Real Recorded Studio Country / Bluegrass BGM Loop
+   */
+  startBGM(mode = 'base', bonusLevel = 1) {
+    this.init();
+    this.bgmMode = mode;
+    this.isPlayingBGM = true;
+
+    let targetTrackId;
+    if (mode === 'freespins') {
+      // Level 1 plays River Valley Breakdown; Level 2+ (2x, 3x, 10x) escalates to Fiddles McGinty!
+      targetTrackId = bonusLevel >= 2 ? 'fiddles_mcginty' : 'river_breakdown';
+    } else {
+      const baseTracks = BGM_TRACKS.filter(t => t.mode === 'base');
+      const chosen = baseTracks[this.currentBaseTrackIdx % baseTracks.length] || baseTracks[0];
+      targetTrackId = chosen.id;
     }
 
-    const key = mode === 'freespins' ? 'bgm_freespins' : 'bgm_base';
-    if (this.buffers[key]) {
-      this.activeBgmSource = this._playBuffer(key, {
-        gainVal: mode === 'freespins' ? 0.85 : 0.75,
-        loop: true,
-        targetGainNode: this.musicGain
-      });
+    this._playTrackById(targetTrackId);
+  }
+
+  _playTrackById(trackId) {
+    const track = BGM_TRACKS.find(t => t.id === trackId) || BGM_TRACKS[0];
+    this.currentTrackId = track.id;
+
+    if (this.onTrackChange) {
+      this.onTrackChange(track);
+    }
+
+    if (!this.musicEnabled) return;
+
+    if (this.activeBgmAudio && this.activeBgmAudio._trackId !== track.id) {
+      try {
+        this.activeBgmAudio.pause();
+      } catch (_) {}
+    }
+
+    if (!this.bgmAudioElements[track.id]) {
+      const audioEl = new Audio(track.url);
+      audioEl.loop = true;
+      audioEl.preload = 'auto';
+      audioEl._trackId = track.id;
+      this.bgmAudioElements[track.id] = audioEl;
+    }
+
+    this.activeBgmAudio = this.bgmAudioElements[track.id];
+    this._updateBgmElementVolume();
+
+    const playPromise = this.activeBgmAudio.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
     }
   }
 
   stopBGM() {
     this.isPlayingBGM = false;
-    if (this.activeBgmSource) {
+    if (this.activeBgmAudio) {
       try {
-        this.activeBgmSource.stop();
+        this.activeBgmAudio.pause();
       } catch (_) {}
-      this.activeBgmSource = null;
     }
   }
 
