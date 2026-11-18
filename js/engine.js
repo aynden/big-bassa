@@ -72,10 +72,10 @@ export class SlotEngine {
       // Apply Free Spins pre-bonus modifiers
       if (this.inFreeSpins) {
         if (sym.id === 'FISH' && this.activeModifiers.has('MORE_FISH')) {
-          w *= 1.65;
+          w *= 1.45;
         }
         if (sym.id === 'WILD' && this.activeModifiers.has('MORE_FISHERMAN')) {
-          w *= 1.75;
+          w *= 1.32;
         }
       }
       return w;
@@ -296,7 +296,8 @@ export class SlotEngine {
     if (this.inFreeSpins) {
       let wildPositions = this._findSymbolPositions(workingGrid, 'WILD');
       let fishPositions = this._findSymbolPositions(workingGrid, 'FISH');
-      const rescueChanceBoost = this.activeModifiers.has('MORE_DYNAMITE') ? 0.58 : 0.28;
+      const rescueChanceBoost = this.activeModifiers.has('MORE_DYNAMITE') ? 0.42 : 0.20;
+      const hookRescueChance = this.activeModifiers.has('MORE_DYNAMITE') ? 0.18 : 0.09;
       const forceRescue = initialGrid._forceRescue;
 
       // Case A: Fisherman Wild(s) landed, but 0 Fish Money symbols on screen -> Dynamite or Bazooka!
@@ -341,10 +342,10 @@ export class SlotEngine {
         });
         workingGrid = rescuedGrid;
       }
-      // Case B: Fish Money symbols on screen, but 0 Fisherman Wilds -> Hook pulls reel to reveal a Fisherman Wild!
+      // Case B: 3+ Fish Money symbols on screen, but 0 Fisherman Wilds -> Rare Hook pulls reel to reveal a Fisherman Wild!
       else if (
-        (fishPositions.length >= 2 && wildPositions.length === 0) &&
-        (forceRescue === 'HOOK_WILD' || Math.random() < rescueChanceBoost * 0.85)
+        (fishPositions.length >= 3 && wildPositions.length === 0) &&
+        (forceRescue === 'HOOK_WILD' || Math.random() < hookRescueChance)
       ) {
         // Choose a column that doesn't exclusively hold high-value fish
         const hookCol = Math.floor(Math.random() * this.reels);
@@ -373,7 +374,7 @@ export class SlotEngine {
       const wilds = this._findSymbolPositions(workingGrid, 'WILD');
       const fishes = this._findSymbolPositions(workingGrid, 'FISH');
 
-      if (wilds.length > 0 && fishes.length > 0) {
+      if (wilds.length > 0) {
         const singleCollectBase = fishes.reduce(
           (sum, pos) => sum + pos.cell.money.multiplier * totalBet,
           0

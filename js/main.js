@@ -537,18 +537,22 @@ class BigBassSplashApp {
     // 4. Play Free Spins Fisherman Fish Money Collection & Level-Up Trail
     if (result.fishCollection) {
       if (result.fishCollection.fishes.length > 0) {
-        this.setStatus(`🤠 FISHERMAN COLLECTING CASH FISH (${result.fishCollection.levelMultiplier}×)!`);
-        await this.renderer.playFishermanCollect(
-          result.fishCollection,
-          this.totalBet,
-          val => this.formatCurrency(val)
-        );
+        this.setStatus(`🤠 FISHERMAN REELING IN CASH FISH (${result.fishCollection.levelMultiplier}×)!`);
+      } else {
+        this.setStatus(`🤠 FISHERMAN WILD ADDED TO MULTIPLIER TRAIL!`);
       }
+      await this.renderer.playFishermanCollect(
+        result.fishCollection,
+        this.totalBet,
+        val => this.formatCurrency(val),
+        () => this.updateTrailUI()
+      );
       this.updateTrailUI();
 
       if (result.fishCollection.retriggerAward) {
         const rt = result.fishCollection.retriggerAward;
         this.audio.playBonusTrigger();
+        this.renderer.triggerScreenShake(0.4, 16);
         this.renderer.addFloatingText(
           600,
           260,
@@ -633,7 +637,9 @@ class BigBassSplashApp {
   }
 
   /**
-   * Pre-Bonus 5-Modifier Lasso Catch Sequence before Free Spins start
+   * Authentic Pre-Bonus 5-Modifier Fishing Lasso Scene:
+   * Renders the Fisherman on #lasso-fishing-canvas casting his rope lasso into the water
+   * to physically snag swimming modifier fish one by one, before throwing a boot/anchor to end!
    */
   async launchPreBonusLassoSequence(triggerInfo) {
     this.audio.playBonusTrigger();
@@ -647,28 +653,185 @@ class BigBassSplashApp {
     this.dom.lassoTitle.textContent = `${triggerInfo.scatterCount} SCATTERS! ${triggerInfo.baseSpins} FREE SPINS!`;
     this.dom.lassoModal.classList.remove('hidden');
 
-    // Animate scanning lasso across the 5 modifier cards
-    for (let step = 0; step < 12; step++) {
-      cards.forEach(c => c.classList.remove('scanning'));
-      const activeCard = cards[step % cards.length];
-      activeCard.classList.add('scanning');
-      this.audio.playButtonClick();
-      await new Promise(r => setTimeout(r, 110));
-    }
-    cards.forEach(c => c.classList.remove('scanning'));
+    // Setup animated Pre-Bonus Lasso Fishing Canvas
+    const lassoCanvas = document.getElementById('lasso-fishing-canvas');
+    const lctx = lassoCanvas ? lassoCanvas.getContext('2d') : null;
+    let lassoRunning = true;
 
-    // Highlight each awarded modifier with splash chime
-    for (const card of cards) {
-      if (awardedIds.has(card.dataset.modId)) {
-        card.classList.add('awarded');
+    const swimFishes = PRE_BONUS_MODIFIERS.map((m, i) => ({
+      id: m.id,
+      name: m.shortName,
+      icon: m.icon,
+      x: 240 + i * 82,
+      y: 115 + (i % 2) * 32,
+      baseX: 240 + i * 82,
+      baseY: 115 + (i % 2) * 32,
+      caught: false,
+      reelingProgress: 0
+    }));
+
+    let activeRope = null; // { targetX, targetY, progress, isReturning, caughtFish }
+
+    if (lctx) {
+      const renderLassoScene = now => {
+        if (!lassoRunning) return;
+        const w = lassoCanvas.width;
+        const h = lassoCanvas.height;
+        lctx.clearRect(0, 0, w, h);
+
+        // Sky / Lake surface waterline
+        const skyGrad = lctx.createLinearGradient(0, 0, 0, 62);
+        skyGrad.addColorStop(0, '#FF9E44');
+        skyGrad.addColorStop(1, '#FFD166');
+        lctx.fillStyle = skyGrad;
+        lctx.fillRect(0, 0, w, 62);
+
+        // Underwater lake depth
+        const waterGrad = lctx.createLinearGradient(0, 62, 0, h);
+        waterGrad.addColorStop(0, '#0096C7');
+        waterGrad.addColorStop(1, '#022B42');
+        lctx.fillStyle = waterGrad;
+        lctx.fillRect(0, 62, w, h - 62);
+
+        // Shimmering waterline wave
+        lctx.beginPath();
+        lctx.moveTo(0, 62);
+        for (let x = 0; x <= w; x += 20) {
+          lctx.lineTo(x, 62 + Math.sin(now * 0.004 + x * 0.05) * 3);
+        }
+        lctx.lineWidth = 3;
+        lctx.strokeStyle = '#ADE8F4';
+        lctx.stroke();
+
+        // Fisherman in his boat on left shore (x=88, y=54)
+        lctx.fillStyle = '#6B3E16';
+        lctx.beginPath();
+        lctx.moveTo(28, 52);
+        lctx.lineTo(148, 52);
+        lctx.lineTo(132, 74);
+        lctx.lineTo(42, 74);
+        lctx.closePath();
+        lctx.fill();
+        lctx.lineWidth = 2;
+        lctx.strokeStyle = '#FFD166';
+        lctx.stroke();
+
+        const wildImg = this.renderer.images['WILD'];
+        if (wildImg) {
+          lctx.save();
+          lctx.beginPath();
+          lctx.arc(88, 34, 28, 0, Math.PI * 2);
+          lctx.clip();
+          lctx.drawImage(wildImg, 60, 6, 56, 56);
+          lctx.restore();
+        }
+
+        // Draw 5 swimming modifier fish in the water
+        const fishImg = this.renderer.images['FISH'];
+        for (const sf of swimFishes) {
+          if (sf.caught && sf.reelingProgress >= 1) continue;
+
+          let fx = sf.baseX + Math.sin(now * 0.004 + sf.baseX) * 14;
+          let fy = sf.baseY + Math.cos(now * 0.005 + sf.baseY) * 6;
+
+          if (sf.caught) {
+            fx = sf.baseX + (105 - sf.baseX) * sf.reelingProgress;
+            fy = sf.baseY + (48 - sf.baseY) * sf.reelingProgress - Math.sin(sf.reelingProgress * Math.PI) * 30;
+          }
+
+          sf.x = fx;
+          sf.y = fy;
+
+          lctx.save();
+          lctx.translate(fx, fy);
+          if (sf.caught) {
+            lctx.rotate(Math.sin(now * 0.05) * 0.35);
+          }
+          if (fishImg) {
+            lctx.beginPath();
+            lctx.arc(0, 0, 24, 0, Math.PI * 2);
+            lctx.save();
+            lctx.clip();
+            lctx.drawImage(fishImg, -24, -24, 48, 48);
+            lctx.restore();
+            lctx.lineWidth = 2.5;
+            lctx.strokeStyle = sf.caught ? '#4CD964' : '#FFD700';
+            lctx.stroke();
+          }
+          lctx.font = '18px sans-serif';
+          lctx.textAlign = 'center';
+          lctx.textBaseline = 'middle';
+          lctx.fillText(sf.icon, 0, -26);
+          lctx.restore();
+        }
+
+        // Draw Fisherman's Lasso Rope / Hook
+        if (activeRope) {
+          const handX = 112;
+          const handY = 38;
+          const curX = handX + (activeRope.targetX - handX) * activeRope.progress;
+          const curY = handY + (activeRope.targetY - handY) * activeRope.progress;
+
+          lctx.beginPath();
+          lctx.moveTo(handX, handY);
+          lctx.quadraticCurveTo((handX + curX) / 2, Math.min(handY, curY) - 28, curX, curY);
+          lctx.lineWidth = 3.5;
+          lctx.strokeStyle = '#FFE680';
+          lctx.stroke();
+
+          // Lasso Loop
+          lctx.beginPath();
+          lctx.ellipse(curX, curY, 22, 14, 0.2, 0, Math.PI * 2);
+          lctx.lineWidth = 3;
+          lctx.strokeStyle = '#FFD700';
+          lctx.stroke();
+        }
+
+        requestAnimationFrame(renderLassoScene);
+      };
+      requestAnimationFrame(renderLassoScene);
+    }
+
+    // For each awarded modifier, cast the Fisherman's lasso to snag that swimming fish and reel it into the boat!
+    for (const mod of awardedModifiers) {
+      const targetFish = swimFishes.find(f => f.id === mod.id);
+      const targetCard = cards.find(c => c.dataset.modId === mod.id);
+
+      if (targetFish) {
+        this.audio.playHookPull();
+        // Cast rope out to fish (260ms)
+        activeRope = { targetX: targetFish.x, targetY: targetFish.y, progress: 0 };
+        for (let step = 1; step <= 10; step++) {
+          activeRope.progress = step / 10;
+          activeRope.targetX = targetFish.x;
+          activeRope.targetY = targetFish.y;
+          await new Promise(r => setTimeout(r, 25));
+        }
+
+        // Snag fish & reel it back into the boat! (340ms)
+        targetFish.caught = true;
         this.audio.playFishCollect();
-        await new Promise(r => setTimeout(r, 380));
+        for (let step = 1; step <= 12; step++) {
+          const p = step / 12;
+          targetFish.reelingProgress = p;
+          activeRope.progress = 1 - p * 0.85;
+          activeRope.targetX = targetFish.x;
+          activeRope.targetY = targetFish.y;
+          await new Promise(r => setTimeout(r, 28));
+        }
+        activeRope = null;
+      }
+
+      if (targetCard) {
+        targetCard.classList.add('awarded');
+        this.audio.playWinChime(false);
+        await new Promise(r => setTimeout(r, 260));
       }
     }
 
     const totalSpins =
       triggerInfo.baseSpins + (awardedIds.has('EXTRA_SPINS') ? 2 : 0);
-    this.dom.lassoTitle.textContent = `${totalSpins} FREE SPINS + ${awardedModifiers.length} MODIFIER${awardedModifiers.length > 1 ? 'S' : ''} READY!`;
+    this.dom.lassoTitle.textContent = `${totalSpins} FREE SPINS + ${awardedModifiers.length} MODIFIER${awardedModifiers.length > 1 ? 'S' : ''} CAUGHT!`;
     this.dom.btnStartFreeSpins.classList.remove('hidden');
 
     await new Promise(resolve => {
@@ -679,6 +842,7 @@ class BigBassSplashApp {
       this.dom.btnStartFreeSpins.addEventListener('click', onStart);
     });
 
+    lassoRunning = false;
     this.dom.lassoModal.classList.add('hidden');
 
     // Populate left sidebar with active modifiers during Free Spins

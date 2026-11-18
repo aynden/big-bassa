@@ -42,10 +42,10 @@ export const SYMBOLS = {
     name: 'Fisherman Wild',
     type: 'wild',
     image: 'assets/images/symbols/wild_fisherman.jpg',
-    baseWeight: 2, // Appears mainly in Free Spins (and rare base wild)
-    freeSpinWeight: 6,
+    baseWeight: 0, // Authentic Big Bass Splash: Fisherman Wild only appears during Free Spins!
+    freeSpinWeight: 1.85, // Calibrated so a Fisherman lands roughly once every 3.5-4 free spins
     payouts: { 3: 5, 4: 25, 5: 200 },
-    description: 'Substitutes for all symbols except Scatter. During Free Spins, collects all Fish Money values on screen!'
+    description: 'Appears on all reels during Free Spins. Substitutes for all symbols except Scatter and collects all Fish Money values on screen!'
   },
   SCATTER: {
     id: 'SCATTER',
