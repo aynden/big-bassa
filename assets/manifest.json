@@ -1,0 +1,21 @@
+{
+  "name": "Big Bass Splash",
+  "gameId": "vs10txbigbass",
+  "provider": "Pragmatic Play / Reel Kingdom Tribute",
+  "background": "assets/images/background_lake.jpg",
+  "symbols": {
+    "WILD": "assets/images/symbols/wild_fisherman.jpg",
+    "SCATTER": "assets/images/symbols/scatter_bass.jpg",
+    "TRUCK": "assets/images/symbols/monster_truck.jpg",
+    "ROD": "assets/images/symbols/fishing_rod.jpg",
+    "DRAGONFLY": "assets/images/symbols/dragonfly.jpg",
+    "TACKLE": "assets/images/symbols/tackle_box.jpg",
+    "FISH": "assets/images/symbols/fish_money.jpg"
+  },
+  "audio": {
+    "bgm_base": "assets/audio/bgm_base.mp3",
+    "bgm_freespins": "assets/audio/bgm_freespins.mp3",
+    "sfx_spin": "assets/audio/sfx_spin.mp3",
+    "sfx_win": "assets/audio/sfx_win.mp3"
+  }
+}

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Big Bass Splash™ — Photorealistic Slot Game</title>
+  <meta name="description" content="Play Big Bass Splash photorealistic 5x3 casino slot game with Free Spins, 5 Pre-Bonus Modifiers, Fisherman Wild Collector, and Token Management." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Full-Screen Underwater & Canyon Lake Backdrop -->
+  <div id="game-stage" class="game-stage">
+    <div class="lake-backdrop"></div>
+    <div class="water-surface-shimmer"></div>
+
+    <!-- Top Utility Bar: Brand, Token Wallet Manager & Dev/Cheat Drawer Trigger -->
+    <header class="top-utility-bar">
+      <div class="brand-badge">
+        <span class="provider-tag">REEL KINGDOM • PRAGMATIC PLAY TRIBUTE</span>
+        <h1 class="game-title-sr">Big Bass Splash</h1>
+      </div>
+
+      <div class="wallet-toolbar">
+        <div class="quick-topup-group" role="group" aria-label="Quick Add Tokens">
+          <span class="toolbar-label">TOKENS:</span>
+          <button id="btn-add-100" class="chip-btn" type="button" title="Add $100.00">+$100</button>
+          <button id="btn-add-1000" class="chip-btn" type="button" title="Add $1,000.00">+$1,000</button>
+          <button id="btn-add-10000" class="chip-btn" type="button" title="Add $10,000.00">+$10K</button>
+          <button id="btn-open-wallet" class="chip-btn chip-btn-accent" type="button" title="Custom Balance / Reset">
+            🪙 Manage / Reset
+          </button>
+        </div>
+
+        <button id="btn-toggle-cheat" class="cheat-toggle-btn" type="button" title="Force Features & Test Mode">
+          ⚡ Test / Force Feature
+        </button>
+      </div>
+    </header>
+
+    <!-- Collapsible Test / Cheat Panel Drawer -->
+    <aside id="cheat-drawer" class="cheat-drawer hidden" aria-label="Test and Cheat Controls">
+      <div class="cheat-drawer-header">
+        <span>⚡ Queue Next Spin Outcome</span>
+        <button id="btn-close-cheat" class="icon-close-btn" type="button">✕</button>
+      </div>
+      <p class="cheat-drawer-hint">Select an event below, then press <strong>SPIN</strong> to experience it immediately:</p>
+      <div class="cheat-grid">
+        <button class="cheat-btn" data-cheat="SCATTER_3" type="button">🐟 3 Scatters (10 Free Spins)</button>
+        <button class="cheat-btn" data-cheat="SCATTER_4" type="button">🐟 4 Scatters (15 Free Spins)</button>
+        <button class="cheat-btn" data-cheat="SCATTER_5" type="button">🐟 5 Scatters (20 Free Spins)</button>
+        <button class="cheat-btn" data-cheat="SCATTER_2_HOOK" type="button">🪝 2 Scatters + Hook Rescue</button>
+        <button class="cheat-btn" data-cheat="SCATTER_2_NUDGE" type="button">⏬ 2 Scatters + Nudge Respin</button>
+        <button class="cheat-btn" data-cheat="TRUCK_5" type="button">🛻 5x Monster Truck (200x Win)</button>
+        <button class="cheat-btn" data-cheat="FISHERMAN_COLLECT" type="button">🤠 Fisherman + 4 Money Fish</button>
+        <button class="cheat-btn" data-cheat="DYNAMITE_RESCUE" type="button">🧨 Dynamite Rescue (Free Spins)</button>
+        <button class="cheat-btn" data-cheat="BAZOOKA_RESCUE" type="button">🚀 Bazooka Rescue (Free Spins)</button>
+        <button class="cheat-btn" data-cheat="HOOK_FISHERMAN_RESCUE" type="button">🎣 Hook Fisherman (Free Spins)</button>
+      </div>
+      <div id="active-cheat-status" class="active-cheat-status">Active Queue: None (Normal RNG)</div>
+    </aside>
+
+    <!-- Main Slot Arena (Left Sidebar + Center 5x3 Reel Canvas + Top Free Spins Trail) -->
+    <main class="slot-arena">
+      <!-- Left Column: Big Bass Splash Logo & Buy Free Spins Wooden Signboard -->
+      <div class="left-side-column">
+        <div class="big-bass-logo-card">
+          <div class="logo-fish-badge">🐟</div>
+          <div class="logo-text-stack">
+            <span class="logo-big-bass">BIG BASS</span>
+            <span class="logo-splash">SPLASH</span>
+          </div>
+        </div>
+
+        <button id="btn-buy-bonus" class="buy-bonus-placard" type="button">
+          <span class="placard-ribbon">BUY FREE SPINS</span>
+          <span id="buy-bonus-price" class="placard-price">$200.00</span>
+          <span class="placard-sub">100× TOTAL BET</span>
+        </button>
+
+        <!-- Active Pre-Bonus Modifiers Badges (Visible during Free Spins) -->
+        <div id="active-modifiers-panel" class="active-modifiers-panel hidden">
+          <div class="modifiers-panel-title">ACTIVE MODIFIERS</div>
+          <div id="active-modifiers-list" class="active-modifiers-list"></div>
+        </div>
+      </div>
+
+      <!-- Center Column: Free Spins Multiplier Trail + 5x3 Underwater Reel Canvas -->
+      <div class="center-reel-column">
+        <!-- Progressive 4-Level Fisherman Multiplier Meter (12 Wild Slots) -->
+        <div id="freespins-trail-bar" class="freespins-trail-bar">
+          <div class="trail-info-left">
+            <span id="fs-mode-badge" class="fs-mode-badge">BASE GAME • 10 LINES</span>
+            <span id="fs-counter-text" class="fs-counter-text">COLLECT 4 WILDS IN FREE SPINS FOR +10 SPINS &amp; UP TO 10×!</span>
+          </div>
+
+          <div class="trail-meter-track">
+            <!-- Level 1 -> Level 2 (2x) -->
+            <div class="trail-segment" data-level="2">
+              <div class="trail-dots">
+                <span class="wild-dot" data-wild-idx="1">🤠</span>
+                <span class="wild-dot" data-wild-idx="2">🤠</span>
+                <span class="wild-dot" data-wild-idx="3">🤠</span>
+              </div>
+              <div class="trail-milestone" data-wild-idx="4">
+                <span class="milestone-mult">2×</span>
+                <span class="milestone-spins">+10 SPINS</span>
+              </div>
+            </div>
+
+            <!-- Level 2 -> Level 3 (3x) -->
+            <div class="trail-segment" data-level="3">
+              <div class="trail-dots">
+                <span class="wild-dot" data-wild-idx="5">🤠</span>
+                <span class="wild-dot" data-wild-idx="6">🤠</span>
+                <span class="wild-dot" data-wild-idx="7">🤠</span>
+              </div>
+              <div class="trail-milestone" data-wild-idx="8">
+                <span class="milestone-mult">3×</span>
+                <span class="milestone-spins">+10 SPINS</span>
+              </div>
+            </div>
+
+            <!-- Level 3 -> Level 4 (10x) -->
+            <div class="trail-segment" data-level="4">
+              <div class="trail-dots">
+                <span class="wild-dot" data-wild-idx="9">🤠</span>
+                <span class="wild-dot" data-wild-idx="10">🤠</span>
+                <span class="wild-dot" data-wild-idx="11">🤠</span>
+              </div>
+              <div class="trail-milestone milestone-max" data-wild-idx="12">
+                <span class="milestone-mult">10×</span>
+                <span class="milestone-spins">+10 SPINS</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5x3 High-DPI Slot Canvas -->
+        <div class="canvas-stage-wrapper">
+          <canvas id="slot-canvas" width="1200" height="690"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- Authentic Pragmatic Play Bottom HUD Control Bar -->
+    <footer class="pragmatic-hud-bar">
+      <!-- Left HUD: Settings, Audio, Info (i), Credit & Bet Display -->
+      <div class="hud-left">
+        <button id="btn-paytable" class="hud-icon-btn hud-info-btn" type="button" title="Paytable & Game Rules">
+          i
+        </button>
+        <button id="btn-audio-toggle" class="hud-icon-btn" type="button" title="Mute / Unmute Audio">
+          🔊
+        </button>
+        <button id="btn-music-toggle" class="hud-icon-btn" type="button" title="Toggle Banjo Soundtrack">
+          🎵
+        </button>
+
+        <div class="hud-metric-group">
+          <div class="hud-metric" id="credit-metric-box" title="Click to toggle Currency / Coins">
+            <span class="metric-label">CREDIT</span>
+            <span id="hud-credit-value" class="metric-value">$1,000.00</span>
+          </div>
+          <div class="hud-metric" id="bet-metric-box" title="Click to open Bet Configurator">
+            <span class="metric-label">BET</span>
+            <span id="hud-bet-value" class="metric-value">$2.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center HUD: Win Readout & Status Ticker -->
+      <div class="hud-center">
+        <div id="hud-status-line" class="hud-status-line">HOLD SPACE FOR TURBO SPIN</div>
+        <div id="hud-win-box" class="hud-win-box hidden">
+          <span class="win-box-label">WIN</span>
+          <span id="hud-win-amount" class="win-box-amount">$0.00</span>
+        </div>
+      </div>
+
+      <!-- Right HUD: Minus (-), Circular Spin Button, Plus (+), Turbo & Autoplay -->
+      <div class="hud-right">
+        <button id="btn-turbo" class="hud-pill-btn" type="button" title="Toggle Turbo Spin">
+          ⚡ TURBO
+        </button>
+
+        <div class="spin-cluster">
+          <button id="btn-bet-minus" class="bet-adjust-btn" type="button" aria-label="Decrease Bet">−</button>
+
+          <button id="btn-spin" class="pragmatic-spin-btn" type="button" aria-label="Spin Reels">
+            <svg class="spin-arrows-svg" viewBox="0 0 100 100">
+              <path d="M 50 10 A 40 40 0 0 1 88 38" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
+              <polygon points="92,43 79,37 89,27" fill="currentColor" />
+              <path d="M 50 90 A 40 40 0 0 1 12 62" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
+              <polygon points="8,57 21,63 11,73" fill="currentColor" />
+            </svg>
+            <span class="spin-center-icon">🎣</span>
+          </button>
+
+          <button id="btn-bet-plus" class="bet-adjust-btn" type="button" aria-label="Increase Bet">+</button>
+        </div>
+
+        <button id="btn-autoplay" class="hud-pill-btn autoplay-btn" type="button">
+          AUTOPLAY
+        </button>
+      </div>
+
+      <!-- Popover Bet Configurator (Coins per Line & Coin Value) -->
+      <div id="bet-popover" class="bet-popover hidden">
+        <div class="bet-popover-header">
+          <span>BET MULTIPLIER: 10×</span>
+          <button id="btn-close-bet-popover" class="icon-close-btn" type="button">✕</button>
+        </div>
+        <div class="bet-control-row">
+          <span class="bet-row-label">COINS PER LINE</span>
+          <div class="bet-stepper">
+            <button id="btn-cpl-minus" class="stepper-btn" type="button">−</button>
+            <span id="cpl-display" class="stepper-val">2</span>
+            <button id="btn-cpl-plus" class="stepper-btn" type="button">+</button>
+          </div>
+        </div>
+        <div class="bet-control-row">
+          <span class="bet-row-label">COIN VALUE</span>
+          <div class="bet-stepper">
+            <button id="btn-cv-minus" class="stepper-btn" type="button">−</button>
+            <span id="cv-display" class="stepper-val">$0.10</span>
+            <button id="btn-cv-plus" class="stepper-btn" type="button">+</button>
+          </div>
+        </div>
+        <div class="bet-control-row bet-total-row">
+          <span class="bet-row-label">TOTAL BET</span>
+          <span id="total-bet-popover-display" class="total-bet-val">$2.00</span>
+        </div>
+        <button id="btn-max-bet" class="max-bet-btn" type="button">MAX BET ($250.00)</button>
+      </div>
+    </footer>
+
+    <!-- Pre-Bonus 5-Modifier Lasso Catch Modal -->
+    <div id="modifier-lasso-modal" class="overlay-modal hidden">
+      <div class="modal-card lasso-modal-card">
+        <div class="lasso-header-badge">FREE SPINS TRIGGERED!</div>
+        <h2 id="lasso-title" class="lasso-title">10 FREE SPINS AWARDED!</h2>
+        <p class="lasso-subtitle">Casting the Fisherman's Lasso to catch bonus modifiers for your round...</p>
+
+        <div class="modifiers-wheel-grid">
+          <div class="modifier-card" data-mod-id="MORE_FISH">
+            <span class="mod-icon">🐟</span>
+            <span class="mod-title">MORE FISH!</span>
+            <span class="mod-desc">Extra Cash Fish on reels</span>
+          </div>
+          <div class="modifier-card" data-mod-id="MORE_FISHERMAN">
+            <span class="mod-icon">🤠</span>
+            <span class="mod-title">MORE FISHERMEN!</span>
+            <span class="mod-desc">Extra Wild Collectors</span>
+          </div>
+          <div class="modifier-card" data-mod-id="MORE_DYNAMITE">
+            <span class="mod-icon">🧨</span>
+            <span class="mod-title">DYNAMITE, HOOKS &amp; BAZOOKAS!</span>
+            <span class="mod-desc">Boosted rescue features</span>
+          </div>
+          <div class="modifier-card" data-mod-id="START_LEVEL_2">
+            <span class="mod-icon">⭐</span>
+            <span class="mod-title">START FROM LEVEL 2!</span>
+            <span class="mod-desc">Begin at 2× Multiplier</span>
+          </div>
+          <div class="modifier-card" data-mod-id="EXTRA_SPINS">
+            <span class="mod-icon">🔄</span>
+            <span class="mod-title">+2 EXTRA SPINS!</span>
+            <span class="mod-desc">+2 now &amp; +2 per retrigger</span>
+          </div>
+        </div>
+
+        <button id="btn-start-freespins" class="primary-action-btn hidden" type="button">
+          START FREE SPINS 🎣
+        </button>
+      </div>
+    </div>
+
+    <!-- Buy Free Spins Confirmation Modal -->
+    <div id="buy-bonus-modal" class="overlay-modal hidden">
+      <div class="modal-card buy-modal-card">
+        <h2>BUY FREE SPINS</h2>
+        <p>Instantly trigger the Free Spins Bonus Round with 3, 4, or 5 Scatters and random Pre-Bonus Modifiers!</p>
+        <div id="buy-modal-cost" class="buy-modal-cost">$200.00</div>
+        <div class="modal-actions-row">
+          <button id="btn-cancel-buy" class="secondary-action-btn" type="button">CANCEL</button>
+          <button id="btn-confirm-buy" class="primary-action-btn" type="button">YES, BUY NOW</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Big Win / Mega Win / Free Spins Summary Celebration Overlay -->
+    <div id="celebration-modal" class="overlay-modal hidden">
+      <div class="modal-card celebration-card">
+        <div id="celebration-tier-badge" class="celebration-tier-badge">BIG WIN!</div>
+        <div id="celebration-amount" class="celebration-amount">$0.00</div>
+        <div id="celebration-subtext" class="celebration-subtext"></div>
+        <button id="btn-dismiss-celebration" class="primary-action-btn" type="button">COLLECT 💰</button>
+      </div>
+    </div>
+
+    <!-- Wallet / Token Manager Modal -->
+    <div id="wallet-modal" class="overlay-modal hidden">
+      <div class="modal-card wallet-modal-card">
+        <div class="modal-top-bar">
+          <h2>🪙 Token &amp; Balance Manager</h2>
+          <button id="btn-close-wallet" class="icon-close-btn" type="button">✕</button>
+        </div>
+        <p class="wallet-desc">This game is purely for fun! Top up your tokens, reset to default, or set any custom balance.</p>
+        <div class="current-balance-banner">
+          <span>CURRENT BALANCE:</span>
+          <strong id="wallet-current-balance">$1,000.00</strong>
+        </div>
+
+        <div class="wallet-presets-grid">
+          <button class="wallet-preset-btn" data-add="100" type="button">+$100.00</button>
+          <button class="wallet-preset-btn" data-add="500" type="button">+$500.00</button>
+          <button class="wallet-preset-btn" data-add="1000" type="button">+$1,000.00</button>
+          <button class="wallet-preset-btn" data-add="5000" type="button">+$5,000.00</button>
+          <button class="wallet-preset-btn" data-add="25000" type="button">+$25,000.00</button>
+          <button id="btn-reset-balance" class="wallet-preset-btn wallet-reset-btn" type="button">↺ Reset to $1,000</button>
+        </div>
+
+        <form id="custom-balance-form" class="custom-balance-form">
+          <label for="custom-balance-input">Set Exact Balance ($):</label>
+          <div class="custom-input-row">
+            <input id="custom-balance-input" type="number" min="1" max="10000000" step="1" value="1000" />
+            <button class="primary-action-btn" type="submit">Set Balance</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Interactive Paytable & Game Rules Modal (i button) -->
+    <div id="paytable-modal" class="overlay-modal hidden">
+      <div class="modal-card paytable-modal-card">
+        <div class="modal-top-bar">
+          <h2>BIG BASS SPLASH — PAYTABLE &amp; RULES</h2>
+          <button id="btn-close-paytable" class="icon-close-btn" type="button">✕</button>
+        </div>
+        <p class="paytable-note">All symbol payouts below automatically reflect your current Total Bet (<strong id="paytable-current-bet">$2.00</strong>):</p>
+        <div id="paytable-symbols-grid" class="paytable-symbols-grid"></div>
+
+        <div class="paytable-rules-section">
+          <h3>FREE SPINS &amp; 5 PRE-BONUS MODIFIERS</h3>
+          <ul>
+            <li><strong>Scatter Symbol (Hooked Bass):</strong> Hit 3, 4, or 5 Scatters anywhere to win <strong>10, 15, or 20 Free Spins</strong>.</li>
+            <li><strong>Second Chance (2 Scatters):</strong> When 2 Scatters land without a 3rd, they can randomly trigger a <strong>Nudge Respin</strong> (moving down 1 row while other reels respin) or a <strong>Hook Pull</strong> to reveal the 3rd Scatter!</li>
+            <li><strong>5 Pre-Bonus Modifiers:</strong> Before Free Spins start, 1 to 5 modifiers are randomly caught: <em>More Fish</em>, <em>More Fishermen</em>, <em>More Dynamites/Hooks/Bazookas</em>, <em>Start from Level 2 (2×)</em>, or <em>+2 Extra Spins</em>.</li>
+            <li><strong>Fisherman Wild Collector &amp; 4-Level Trail:</strong> During Free Spins, each Wild Fisherman collects all cash values from Fish Money symbols (2× to 5,000× total bet). Every 4th Wild collected retriggers <strong>+10 Free Spins</strong> and upgrades the Fish Money multiplier to <strong>2× (Level 2)</strong>, <strong>3× (Level 3)</strong>, and <strong>10× (Level 4)</strong>!</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
