@@ -217,6 +217,12 @@ class BigBassSplashApp {
     // Keyboard Spacebar support (Tap to spin, hold for turbo spin)
     window.addEventListener('keydown', e => {
       if (e.code === 'Space' && document.activeElement?.tagName !== 'INPUT') {
+        const blockingModalOpen =
+          (this.dom.celebrationModal && !this.dom.celebrationModal.classList.contains('hidden')) ||
+          (this.dom.bonusIntroPosterModal && !this.dom.bonusIntroPosterModal.classList.contains('hidden')) ||
+          (this.dom.prebonusLassoOverlay && !this.dom.prebonusLassoOverlay.classList.contains('hidden'));
+        if (blockingModalOpen) return;
+
         e.preventDefault();
         if (!e.repeat) {
           this.triggerSpin();
@@ -1351,12 +1357,20 @@ class BigBassSplashApp {
         this.dom.celebrationAmount.textContent = this.formatCurrency(amount);
       }
 
-      const dismiss = () => {
+      const cleanup = () => {
+        this.dom.btnDismissCelebration.removeEventListener('click', dismiss);
+        this.dom.celebrationModal.removeEventListener('click', dismiss);
+        window.removeEventListener('keydown', onKey, true);
+      };
+
+      const dismiss = e => {
+        if (e) e.stopPropagation();
         if (counting) {
           finishCount();
           return;
         }
-        this.dom.btnDismissCelebration.removeEventListener('click', dismiss);
+        cleanup();
+        this.audio.playButtonClick();
         this.dom.celebrationModal.classList.add('hidden');
         if (this.dom.celebrationDimmer) {
           this.dom.celebrationDimmer.classList.add('hidden');
@@ -1366,7 +1380,19 @@ class BigBassSplashApp {
         }
         resolve();
       };
+
+      const onKey = e => {
+        if ((e.code === 'Space' || e.code === 'Enter') && document.activeElement?.tagName !== 'INPUT') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.repeat) return;
+          dismiss();
+        }
+      };
+
       this.dom.btnDismissCelebration.addEventListener('click', dismiss);
+      this.dom.celebrationModal.addEventListener('click', dismiss);
+      window.addEventListener('keydown', onKey, true);
     });
   }
 
