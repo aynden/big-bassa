@@ -117,6 +117,7 @@ class BigBassSplashApp {
       baseGameHeader: document.getElementById('base-game-header'),
       freespinsTrailBar: document.getElementById('freespins-trail-bar'),
       bonusMedallionsRail: document.getElementById('bonus-medallions-rail'),
+      trailCometCanvas: document.getElementById('trail-comet-canvas'),
 
       // Phase 1: Underwater Circle-Swim Lasso & Anchor Catch Arena
       prebonusLassoOverlay: document.getElementById('prebonus-lasso-overlay'),
@@ -637,23 +638,37 @@ class BigBassSplashApp {
       }
     }
 
-    // 4. Play Authentic Two-Step Free Spins Fisherman Collection (Collect Fish -> Apply x2/x3/x10 -> Fill Leather Belt)
+    // 4. Play Authentic Two-Step Free Spins Fisherman Collection (Collect Fish -> Apply x2/x3/x10 -> Option 1B Ghost Trail Comet to Belt)
     if (result.fishCollection) {
       let displayedWilds = preSpinWilds;
       await this.renderer.playFishermanCollect(
         result.fishCollection,
         this.totalBet,
         val => this.formatCurrency(val),
-        slotIdx => {
-          displayedWilds = slotIdx;
-          this.updateTrailUI(displayedWilds);
-          if (slotIdx === 4 || slotIdx === 8 || slotIdx === 12) {
-            this.audio.playLevelUpFanfare();
-            if (this.vfx3d) {
-              this.vfx3d.spawnShockwave(0.5, 0.14, 0xffd700, 4.2);
-              this.vfx3d.burstCoins(0.5, 0.16, 26, 1.05);
+        async (slotIdx, originInfo) => {
+          await this.playFishermanCometToBelt(originInfo, slotIdx, () => {
+            displayedWilds = slotIdx;
+            this.updateTrailUI(displayedWilds);
+            const targetSlotEl = document.querySelector(
+              `#freespins-trail-bar [data-wild-idx="${slotIdx}"]`
+            );
+            if (targetSlotEl) {
+              targetSlotEl.classList.remove('slot-slam-pop');
+              void targetSlotEl.offsetWidth;
+              targetSlotEl.classList.add('slot-slam-pop');
+              setTimeout(() => targetSlotEl.classList.remove('slot-slam-pop'), 500);
             }
-          }
+            if (slotIdx === 4 || slotIdx === 8 || slotIdx === 12) {
+              this.audio.playLevelUpFanfare();
+              if (this.vfx3d && targetSlotEl) {
+                const r = targetSlotEl.getBoundingClientRect();
+                const nx = (r.left + r.width / 2) / window.innerWidth;
+                const ny = (r.top + r.height / 2) / window.innerHeight;
+                this.vfx3d.spawnShockwave(nx, ny, 0xffd700, 4.2);
+                this.vfx3d.burstCoins(nx, ny, 28, 1.05);
+              }
+            }
+          });
         },
         fishermanWin => {
           const remainingCap = Math.max(0, Number((result.totalWin - alreadyCreditedThisSpin).toFixed(2)));
@@ -761,6 +776,225 @@ class BigBassSplashApp {
         }
       }, this.isTurbo ? 350 : 750);
     }
+  }
+
+  /**
+   * OPTION 1B: Ghost Trail Comet Fisherman → Top Stitched-Leather Progress Belt
+   * Renders at 60 FPS on full-viewport #trail-comet-canvas so the clean Fisherman portrait
+   * lifts directly off his reel cell, sweeps upward along a glowing S-curve leaving 5 golden
+   * after-image clones & comet sparks behind him, and slams straight into the exact leather belt slot!
+   */
+  playFishermanCometToBelt(originInfo, targetSlotIdx, onImpact = null) {
+    const canvas = this.dom.trailCometCanvas;
+    const slotEl = document.querySelector(`#freespins-trail-bar [data-wild-idx="${targetSlotIdx}"]`);
+    const fishermanImg = this.renderer.images['WILD_BONUS'] || this.renderer.images['WILD'];
+
+    if (!canvas || !slotEl || !originInfo) {
+      this.audio.playBeltSlotSlam(targetSlotIdx);
+      if (onImpact) onImpact();
+      return Promise.resolve();
+    }
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    canvas.width = Math.round(vw * dpr);
+    canvas.height = Math.round(vh * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      this.audio.playBeltSlotSlam(targetSlotIdx);
+      if (onImpact) onImpact();
+      return Promise.resolve();
+    }
+
+    const slotRect = slotEl.getBoundingClientRect();
+    const startX = originInfo.clientX;
+    const startY = originInfo.clientY;
+    const startSize = Math.max(76, Math.min(148, originInfo.tileSize || 110));
+    const endX = slotRect.left + slotRect.width / 2;
+    const endY = slotRect.top + slotRect.height / 2;
+    const endSize = Math.max(44, Math.min(68, Math.max(slotRect.width, slotRect.height)));
+
+    // Sweeping golden S-curve Bezier control points
+    const dx = endX - startX;
+    const bendSign = dx >= 0 ? -1 : 1;
+    const cp1X = startX + dx * 0.22 + bendSign * Math.min(130, Math.max(68, Math.abs(dx) * 0.35));
+    const cp1Y = startY - Math.max(60, (startY - endY) * 0.28);
+    const cp2X = endX - dx * 0.14 - bendSign * 42;
+    const cp2Y = endY + Math.max(36, (startY - endY) * 0.34);
+
+    const cubicAt = u => {
+      const m = 1 - u;
+      return {
+        x: m * m * m * startX + 3 * m * m * u * cp1X + 3 * m * u * u * cp2X + u * u * u * endX,
+        y: m * m * m * startY + 3 * m * m * u * cp1Y + 3 * m * u * u * cp2Y + u * u * u * endY
+      };
+    };
+
+    const flightDur = this.isTurbo ? 680 : 880;
+    const impactDur = 380;
+    const sparks = [];
+    let impactFired = false;
+
+    this.audio.playFishermanCometWhoosh();
+
+    return new Promise(resolve => {
+      let t0 = null;
+
+      const drawPortrait = (x, y, sz, alpha, tilt = 0, goldenAura = false) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(tilt);
+        ctx.globalAlpha = alpha;
+        if (goldenAura) {
+          const glow = ctx.createRadialGradient(0, 0, sz * 0.12, 0, 0, sz * 0.78);
+          glow.addColorStop(0, 'rgba(255, 232, 112, 0.85)');
+          glow.addColorStop(0.55, 'rgba(255, 174, 20, 0.42)');
+          glow.addColorStop(1, 'rgba(255, 140, 0, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(0, 0, sz * 0.78, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (fishermanImg && fishermanImg.complete) {
+          ctx.drawImage(fishermanImg, -sz / 2, -sz / 2, sz, sz);
+        }
+        ctx.restore();
+      };
+
+      const step = now => {
+        if (t0 === null) t0 = now;
+        const elapsed = Math.max(0, now - t0);
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, vw, vh);
+
+        if (elapsed < flightDur) {
+          const p = Math.min(1, elapsed / flightDur);
+          // Smooth accelerate-into-slam curve
+          const ease = p < 0.42 ? 2.1 * p * p : 1 - Math.pow(1 - p, 2.35);
+          const cur = cubicAt(ease);
+
+          // 1. Luminous golden comet tail ribbon behind the Fisherman
+          ctx.save();
+          ctx.lineCap = 'round';
+          for (let seg = 14; seg >= 1; seg--) {
+            const u0 = Math.max(0, ease - seg * 0.026);
+            const u1 = Math.max(0, ease - (seg - 1) * 0.026);
+            if (u1 <= u0) continue;
+            const a = cubicAt(u0);
+            const b = cubicAt(u1);
+            const fade = 1 - seg / 15;
+            ctx.strokeStyle = seg % 2 === 0 ? `rgba(255, 240, 148, ${fade * 0.65})` : `rgba(255, 178, 28, ${fade * 0.55})`;
+            ctx.lineWidth = Math.max(2, fade * 26);
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // 2. Spawn continuous sparkling comet flecks
+          for (let s = 0; s < 2; s++) {
+            sparks.push({
+              x: cur.x + (Math.random() - 0.5) * 26,
+              y: cur.y + (Math.random() - 0.5) * 26,
+              vx: (Math.random() - 0.5) * 95,
+              vy: (Math.random() - 0.5) * 95 + 22,
+              r: 2.2 + Math.random() * 3.8,
+              life: 0,
+              maxLife: 0.34 + Math.random() * 0.24,
+              color: Math.random() < 0.5 ? '#FFF8C4' : '#FFB800'
+            });
+          }
+
+          // 3. Draw 5 translucent golden ghost after-image Fisherman clones trailing along the S-curve!
+          for (let g = 5; g >= 1; g--) {
+            const gu = Math.max(0, ease - g * 0.072);
+            const gp = cubicAt(gu);
+            const gSize = startSize + (endSize - startSize) * gu;
+            const gAlpha = (6 - g) * 0.095;
+            drawPortrait(gp.x, gp.y, gSize * (0.96 - g * 0.02), gAlpha, Math.sin(gu * Math.PI) * -0.14, true);
+          }
+
+          // 4. Draw Lead Crisp Fisherman Portrait with golden comet halo
+          const leadSize = startSize + (endSize - startSize) * ease;
+          const leadTilt = Math.sin(p * Math.PI) * (dx >= 0 ? 0.14 : -0.14);
+          drawPortrait(cur.x, cur.y, leadSize, 1, leadTilt, true);
+        } else {
+          // Trigger impact callback & climbing leather-slam chime at the exact arrival moment!
+          if (!impactFired) {
+            impactFired = true;
+            this.audio.playBeltSlotSlam(targetSlotIdx);
+            if (onImpact) onImpact();
+            for (let k = 0; k < 16; k++) {
+              const ang = (k / 16) * Math.PI * 2 + Math.random() * 0.2;
+              const spd = 95 + Math.random() * 145;
+              sparks.push({
+                x: endX,
+                y: endY,
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd,
+                r: 2.5 + Math.random() * 3.5,
+                life: 0,
+                maxLife: 0.36,
+                color: k % 2 === 0 ? '#FFF9CC' : '#FFD000'
+              });
+            }
+          }
+
+          const ip = Math.min(1, (elapsed - flightDur) / impactDur);
+          // Expanding 24K gold shockwave ring centered right on the landed belt slot!
+          ctx.save();
+          ctx.strokeStyle = '#FFE875';
+          ctx.globalAlpha = Math.max(0, 1 - ip);
+          ctx.lineWidth = 5 * (1 - ip);
+          ctx.beginPath();
+          ctx.arc(endX, endY, 16 + ip * 58, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.globalAlpha = Math.max(0, (1 - ip) * 0.7);
+          ctx.lineWidth = 2.5 * (1 - ip);
+          ctx.beginPath();
+          ctx.arc(endX, endY, 10 + ip * 38, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Update & draw golden comet + impact sparkle particles
+        const dt = 0.016;
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const sp = sparks[i];
+          sp.life += dt;
+          sp.x += sp.vx * dt;
+          sp.y += sp.vy * dt;
+          const a = Math.max(0, 1 - sp.life / sp.maxLife);
+          if (a <= 0) {
+            sparks.splice(i, 1);
+            continue;
+          }
+          ctx.save();
+          ctx.globalAlpha = a;
+          ctx.fillStyle = sp.color;
+          ctx.beginPath();
+          ctx.arc(sp.x, sp.y, sp.r * a, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.restore();
+
+        if (elapsed < flightDur + impactDur) {
+          requestAnimationFrame(step);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(step);
+    });
   }
 
   /**
@@ -1031,20 +1265,33 @@ class BigBassSplashApp {
         }
 
         // 5. Update positions along the 3D elliptical orbit & Z-sort back-to-front!
-        const orbitSpeed = 0.88;
+        const orbitSpeed = 0.96;
         const drawList = [];
 
         for (const s of swimmers) {
           if (s.caught && s.hoistProgress >= 1) continue;
 
-          const angle = s.angleOffset + elapsedSec * orbitSpeed;
+          // Smooth extra angular burst when a fish darts away during a dramatic near-miss!
+          if (!s.dartOffset) s.dartOffset = 0;
+          if (s.dartVelocity && s.dartVelocity > 0.01) {
+            s.dartOffset += s.dartVelocity * dt;
+            s.dartVelocity *= Math.pow(0.08, dt);
+          }
+
+          const angle = s.angleOffset + elapsedSec * orbitSpeed + s.dartOffset;
           const depth = Math.sin(angle); // -1 (back of circle) .. +1 (front of circle)
           let sx = CX + Math.cos(angle) * RX;
           let sy = CY + depth * RY;
           let sc = 0.74 + ((depth + 1) / 2) * 0.42; // 0.74 in back -> 1.16 in front
           const swimDir = -Math.sin(angle) >= 0 ? 1 : -1;
 
-          if (s.caught) {
+          if (s.tugging) {
+            // Vigorous tug-of-war struggle right on the seabed before breaking free!
+            const amp = s.isAnchor ? 6 : 12;
+            sx = s.caughtX + Math.sin(now * (s.isAnchor ? 0.032 : 0.068)) * amp;
+            sy = s.caughtY + Math.cos(now * 0.05) * (s.isAnchor ? 4 : 8) - (s.tugLift || 0) * 28;
+            sc = 1.12;
+          } else if (s.caught) {
             const p = s.hoistProgress;
             const ease = p * p * (3 - 2 * p);
             sx = s.caughtX + (CX - s.caughtX) * ease * 0.35;
@@ -1058,7 +1305,7 @@ class BigBassSplashApp {
           s.x = sx;
           s.y = sy;
           s.scale = sc;
-          drawList.push({ swimmer: s, depth: s.caught ? 2 : depth, swimDir });
+          drawList.push({ swimmer: s, depth: s.caught || s.tugging ? 2 : depth, swimDir });
         }
 
         drawList.sort((a, b) => a.depth - b.depth);
@@ -1080,8 +1327,10 @@ class BigBassSplashApp {
           ctx.save();
           ctx.translate(s.x, s.y);
 
-          if (s.caught) {
-            ctx.rotate(Math.sin(now * (s.isAnchor ? 0.015 : 0.045)) * (s.isAnchor ? 0.14 : 0.28));
+          if (s.tugging || s.caught) {
+            ctx.rotate(
+              Math.sin(now * (s.isAnchor ? 0.022 : 0.058)) * (s.isAnchor ? 0.19 : 0.34)
+            );
           }
 
           if (s.isAnchor) {
@@ -1115,29 +1364,59 @@ class BigBassSplashApp {
           if (sr.life >= sr.maxLife) splashRings.splice(i, 1);
         }
 
-        // 7. Draw Authentic Cowboy Braided Rope Lasso Dropping & Snagging!
+        // 7. Draw Dramatic Cowboy Braided Rope Lasso (Twirling -> Tease Dip -> Drop -> Tug-of-War -> Hoist!)
         if (activeLasso) {
           const topX = CX;
           const topY = 0;
-          const tx = activeLasso.target.x;
-          const ty = activeLasso.target.y;
+          const twirlX = CX + Math.cos(elapsedSec * 2.9) * 215;
+          const twirlY = 175 + Math.sin(elapsedSec * 3.4) * 34;
 
-          let curX = tx;
-          let curY = ty;
-          let loopRx = 48;
-          let loopRy = 22;
+          let curX = twirlX;
+          let curY = twirlY;
+          let loopRx = 62;
+          let loopRy = 26;
+          let ropeBow = 20;
 
-          if (activeLasso.mode === 'drop') {
+          if (activeLasso.mode === 'twirl') {
+            curX = twirlX;
+            curY = twirlY;
+            loopRx = 66 + Math.sin(elapsedSec * 6) * 6;
+            loopRy = 26 + Math.cos(elapsedSec * 6) * 4;
+          } else if (activeLasso.mode === 'tease') {
+            // Sweeps down dramatically toward a fish, hovers inches above it, then recoils back up!
+            const dip = Math.sin(activeLasso.progress * Math.PI);
+            const tx = activeLasso.target.x;
+            const ty = activeLasso.target.y - 34;
+            curX = twirlX + (tx - twirlX) * dip;
+            curY = twirlY + (ty - twirlY) * dip;
+            loopRx = 66 - dip * 22;
+            loopRy = 26 - dip * 8;
+          } else if (activeLasso.mode === 'drop') {
             const ease = 1 - Math.pow(1 - activeLasso.progress, 2.2);
-            curX = topX + (tx - topX) * ease;
-            curY = topY + (ty - topY) * ease;
-            loopRx = 62 - ease * 18;
-            loopRy = 28 - ease * 8;
+            const sx0 = activeLasso.startX ?? twirlX;
+            const sy0 = activeLasso.startY ?? twirlY;
+            curX = sx0 + (activeLasso.target.x - sx0) * ease;
+            curY = sy0 + (activeLasso.target.y - sy0) * ease;
+            loopRx = 64 - ease * 28;
+            loopRy = 26 - ease * 11;
+          } else if (activeLasso.mode === 'tug') {
+            // Razor-taut vibrating rope locked around thrashing fish or heavy anchor!
+            curX = activeLasso.target.x;
+            curY = activeLasso.target.y;
+            loopRx = 28;
+            loopRy = 14;
+            ropeBow = Math.sin(now * 0.09) * 5;
           } else {
-            // Tightly cinched around the caught fish or anchor as it hoists up!
+            // Tightly cinched hoist out of the sunlit lake!
+            curX = activeLasso.target.x;
+            curY = activeLasso.target.y;
             loopRx = 26;
             loopRy = 13;
+            ropeBow = 6;
           }
+
+          activeLasso.lastX = curX;
+          activeLasso.lastY = curY;
 
           ctx.save();
           // Rope shadow
@@ -1146,15 +1425,15 @@ class BigBassSplashApp {
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(topX, topY);
-          ctx.quadraticCurveTo((topX + curX) * 0.5 + 18, curY * 0.5, curX, curY - 6);
+          ctx.quadraticCurveTo((topX + curX) * 0.5 + ropeBow, curY * 0.5, curX, curY - 6);
           ctx.stroke();
 
           // Braided golden-tan cowboy lasso rope
-          ctx.strokeStyle = '#F2CE7E';
+          ctx.strokeStyle = activeLasso.mode === 'tug' ? '#FFF0A8' : '#F2CE7E';
           ctx.lineWidth = 4.5;
           ctx.beginPath();
           ctx.moveTo(topX, topY);
-          ctx.quadraticCurveTo((topX + curX) * 0.5 + 18, curY * 0.5, curX, curY - 6);
+          ctx.quadraticCurveTo((topX + curX) * 0.5 + ropeBow, curY * 0.5, curX, curY - 6);
           ctx.stroke();
 
           // Lasso Loop ellipse
@@ -1191,36 +1470,154 @@ class BigBassSplashApp {
         requestAnimationFrame(tick);
       });
 
-    // Give player 550ms to watch the fish & anchor orbiting smoothly in the sunlit circle!
-    await new Promise(r => setTimeout(r, 550));
+    // Helper: Dramatic Near-Miss Tease (lasso dips down toward a fish -> fish darts away at last split-second!)
+    const performNearMissTease = async (teaseSwimmer, dipCallout, missCallout) => {
+      if (!teaseSwimmer) return;
+      if (this.dom.lassoCalloutText) {
+        this.dom.lassoCalloutText.textContent = dipCallout;
+      }
+      this.audio.playHookPull();
+      activeLasso = { mode: 'tease', target: teaseSwimmer, progress: 0 };
+      let darted = false;
+      await animateProgress(1050, p => {
+        activeLasso.progress = p;
+        if (p >= 0.48 && !darted) {
+          darted = true;
+          teaseSwimmer.dartVelocity = 3.2; // Fish darts forward just out of the lasso loop!
+          splashRings.push({
+            x: teaseSwimmer.x,
+            y: teaseSwimmer.y,
+            maxR: 120,
+            life: 0,
+            maxLife: 0.58,
+            color: '#80F5FF'
+          });
+          this.audio.playLassoNearMiss();
+          if (this.dom.lassoCalloutText) {
+            this.dom.lassoCalloutText.textContent = missCallout;
+          }
+        }
+      });
+      activeLasso = { mode: 'twirl', progress: 0 };
+      await new Promise(r => setTimeout(r, 420));
+    };
 
-    // Cast lasso for each awarded modifier fish one by one!
-    for (const mod of awardedModifiers) {
+    const getUncaughtNonAwardedFish = () =>
+      swimmers.filter(s => !s.isAnchor && !s.caught && !awardedIds.has(s.id));
+
+    // OPENING SUSPENSE: Overhead cowboy lasso twirls above the orbiting fish & anchor (~1.25s)
+    activeLasso = { mode: 'twirl', progress: 0 };
+    if (this.dom.lassoCalloutText) {
+      this.dom.lassoCalloutText.textContent = '🤠 SPINNING LASSO — SCANNING THE LAKE...';
+    }
+    await new Promise(r => setTimeout(r, 1250));
+
+    // If 0 modifiers were rolled (Anchor-first!), create thrilling suspense with 2 near-miss fish dips first!
+    if (awardedModifiers.length === 0) {
+      const fishPool = swimmers.filter(s => !s.isAnchor);
+      if (fishPool[0]) {
+        await performNearMissTease(
+          fishPool[0],
+          '🎯 DIPPING FOR A BONUS MODIFIER...',
+          '😮 SO CLOSE! FISH SLIPPED AWAY!'
+        );
+      }
+      if (fishPool[2]) {
+        await performNearMissTease(
+          fishPool[2],
+          '🎯 GOING FOR THE GOLDEN BASS...',
+          '💨 ANOTHER NEAR MISS! WATCH THE ANCHOR!'
+        );
+      }
+    }
+
+    // Cast lasso dramatically for each awarded modifier fish (drop -> tug-of-war -> hoist -> gold medallion!)
+    for (let mIdx = 0; mIdx < awardedModifiers.length; mIdx++) {
+      const mod = awardedModifiers[mIdx];
       const targetSwimmer = swimmers.find(s => s.id === mod.id);
       const targetRailMedallion = railMedallions.find(m => m.dataset.modId === mod.id);
 
+      // Optional mid-sequence near-miss tease before 2nd catch for authentic Pragmatic Play suspense
+      if (mIdx === 1) {
+        const decoys = getUncaughtNonAwardedFish();
+        if (decoys.length > 0) {
+          await performNearMissTease(
+            decoys[0],
+            '🎯 GOING FOR ANOTHER BONUS...',
+            '😮 SLIPPED FREE — CASTING AGAIN!'
+          );
+        }
+      }
+
       if (targetSwimmer) {
+        if (this.dom.lassoCalloutText) {
+          this.dom.lassoCalloutText.textContent =
+            mIdx === 0 ? '🎯 LOCKED ON! CASTING LASSO...' : '🎯 CASTING FOR ANOTHER BONUS...';
+        }
         this.audio.playHookPull();
-        activeLasso = { mode: 'drop', target: targetSwimmer, progress: 0 };
-        await animateProgress(340, p => {
+        activeLasso = {
+          mode: 'drop',
+          target: targetSwimmer,
+          startX: activeLasso?.lastX ?? CX,
+          startY: activeLasso?.lastY ?? 175,
+          progress: 0
+        };
+        await animateProgress(520, p => {
           activeLasso.progress = p;
         });
 
-        // Snag fish & splash!
+        // TUG-OF-WAR STRUGGLE (520ms): Fish hooks & thrashes taut against the rope!
+        targetSwimmer.tugging = true;
+        targetSwimmer.tugLift = 0;
+        activeLasso.mode = 'tug';
+        splashRings.push({
+          x: targetSwimmer.x,
+          y: targetSwimmer.y,
+          maxR: 130,
+          life: 0,
+          maxLife: 0.65,
+          color: '#80F5FF'
+        });
+        this.audio.playLassoTensionCreak();
+        if (this.dom.lassoCalloutText) {
+          this.dom.lassoCalloutText.textContent = '🔥 HOOKED A BONUS! REELING IT IN...';
+        }
+        await animateProgress(520, p => {
+          targetSwimmer.tugLift = p;
+          if (Math.random() < 0.14) {
+            splashRings.push({
+              x: targetSwimmer.x,
+              y: targetSwimmer.y,
+              maxR: 95,
+              life: 0,
+              maxLife: 0.45,
+              color: '#FFD700'
+            });
+          }
+        });
+
+        // HOIST OUT OF THE LAKE!
+        targetSwimmer.tugging = false;
         targetSwimmer.caught = true;
         targetSwimmer.hoistProgress = 0;
         activeLasso.mode = 'hoist';
-        splashRings.push({ x: targetSwimmer.x, y: targetSwimmer.y, maxR: 135, life: 0, maxLife: 0.65, color: '#FFD700' });
+        splashRings.push({
+          x: targetSwimmer.x,
+          y: targetSwimmer.y,
+          maxR: 165,
+          life: 0,
+          maxLife: 0.72,
+          color: '#FFD700'
+        });
         this.audio.playFishCollect();
 
         if (this.dom.lassoCalloutText) {
           this.dom.lassoCalloutText.textContent = `✨ ${mod.name}`;
         }
 
-        await animateProgress(430, p => {
+        await animateProgress(560, p => {
           targetSwimmer.hoistProgress = p;
         });
-        activeLasso = null;
 
         // Illuminate the matching left-rail circular medallion in gleaming 24K gold!
         if (targetRailMedallion) {
@@ -1230,38 +1627,84 @@ class BigBassSplashApp {
             const rect = targetRailMedallion.getBoundingClientRect();
             const nx = (rect.left + rect.width / 2) / window.innerWidth;
             const ny = (rect.top + rect.height / 2) / window.innerHeight;
-            this.vfx3d.burstCoins(nx, ny, 14, 0.9);
-            this.vfx3d.spawnShockwave(nx, ny, 0xffd700, 2.5);
+            this.vfx3d.burstCoins(nx, ny, 16, 0.95);
+            this.vfx3d.spawnShockwave(nx, ny, 0xffd700, 2.8);
           }
         }
-        await new Promise(r => setTimeout(r, 340));
+
+        // Return lasso to overhead twirl while player savors the caught bonus
+        activeLasso = { mode: 'twirl', progress: 0 };
+        await new Promise(r => setTimeout(r, 620));
       }
     }
 
-    // FINAL CAST: Catch the Heavy Rusty Iron Anchor to end the modifier-catching round!
+    // FINAL DRAMATIC CLIMAX: One tense overhead twirl (+ optional last near-miss) -> Heavy Iron Anchor!
     const anchorSwimmer = swimmers.find(s => s.isAnchor);
     if (anchorSwimmer) {
+      if (awardedModifiers.length > 0) {
+        const remainingFish = getUncaughtNonAwardedFish();
+        if (remainingFish.length > 0 && awardedModifiers.length <= 2) {
+          await performNearMissTease(
+            remainingFish[remainingFish.length - 1],
+            '🤠 ONE MORE CAST... CAN WE GET ANOTHER?',
+            '😮 JUST MISSED! WATCH OUT FOR THE ANCHOR!'
+          );
+        } else {
+          if (this.dom.lassoCalloutText) {
+            this.dom.lassoCalloutText.textContent = '🤠 CASTING ONE MORE TIME...';
+          }
+          await new Promise(r => setTimeout(r, 700));
+        }
+      }
+
+      if (this.dom.lassoCalloutText) {
+        this.dom.lassoCalloutText.textContent = '⚠️ UH OH... WATCH THE ANCHOR!';
+      }
       this.audio.playHookPull();
-      activeLasso = { mode: 'drop', target: anchorSwimmer, progress: 0 };
-      await animateProgress(360, p => {
+      activeLasso = {
+        mode: 'drop',
+        target: anchorSwimmer,
+        startX: activeLasso?.lastX ?? CX,
+        startY: activeLasso?.lastY ?? 175,
+        progress: 0
+      };
+      await animateProgress(560, p => {
         activeLasso.progress = p;
       });
 
+      // HEAVY ANCHOR TUG-OF-WAR (680ms) + IRON CLANG!
+      anchorSwimmer.tugging = true;
+      anchorSwimmer.tugLift = 0;
+      activeLasso.mode = 'tug';
+      splashRings.push({
+        x: anchorSwimmer.x,
+        y: anchorSwimmer.y,
+        maxR: 175,
+        life: 0,
+        maxLife: 0.78,
+        color: '#80F5FF'
+      });
+      this.audio.playAnchorClang();
+      if (this.dom.lassoCalloutText) {
+        this.dom.lassoCalloutText.textContent = '⚓ HEAVY IRON ANCHOR HOOKED!';
+      }
+      await animateProgress(680, p => {
+        anchorSwimmer.tugLift = p;
+      });
+
+      // SLOW HEAVY HEAVE OUT OF THE WATER!
+      anchorSwimmer.tugging = false;
       anchorSwimmer.caught = true;
       anchorSwimmer.hoistProgress = 0;
       activeLasso.mode = 'hoist';
-      splashRings.push({ x: anchorSwimmer.x, y: anchorSwimmer.y, maxR: 165, life: 0, maxLife: 0.72, color: '#80F5FF' });
-      this.audio.playAnchorClang();
-
       if (this.dom.lassoCalloutText) {
         this.dom.lassoCalloutText.textContent = '⚓ ANCHOR CAUGHT! STARTING BONUS...';
       }
-
-      await animateProgress(520, p => {
+      await animateProgress(680, p => {
         anchorSwimmer.hoistProgress = p;
       });
       activeLasso = null;
-      await new Promise(r => setTimeout(r, 480));
+      await new Promise(r => setTimeout(r, 620));
     }
 
     // Close Phase 1 Underwater Circle-Swim Arena

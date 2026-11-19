@@ -517,13 +517,14 @@ export class SlotEngine {
    */
   rollPreBonusModifiers(guaranteedMin = 0) {
     // Authentic Big Bass Splash picks 0 to 5 modifiers before Free Spins begin
+    // Weighted so players regularly catch 1-3+ exciting bonuses (~88% catch >= 1, ~54% catch 2+)
     const weights = [
-      { count: 0, w: 22 },
-      { count: 1, w: 38 },
-      { count: 2, w: 25 },
-      { count: 3, w: 10 },
-      { count: 4, w: 3.5 },
-      { count: 5, w: 1.5 }
+      { count: 0, w: 12 },
+      { count: 1, w: 34 },
+      { count: 2, w: 32 },
+      { count: 3, w: 14 },
+      { count: 4, w: 5.5 },
+      { count: 5, w: 2.5 }
     ];
     const totalW = weights.reduce((s, i) => s + i.w, 0);
     let r = Math.random() * totalW;

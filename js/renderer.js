@@ -1467,42 +1467,36 @@ export class ReelRenderer {
         onFishermanWinAdded(finalFishermanWin);
       }
 
-      // STEP 3: Shoot glowing golden Fisherman Wild orb up into the EXACT next slot on the top leather belt!
+      // STEP 3: Launch Option 1B Ghost Trail Comet from this exact Fisherman tile straight into the top stitched-leather belt slot!
       const targetSlotIdx = Math.min(12, previousWilds + wIdx + 1);
-      const orbG = new PIXI.Graphics();
-      orbG.beginFill(0xffd700, 1);
-      orbG.lineStyle(3, 0xffffff, 1);
-      orbG.drawCircle(0, 0, 18);
-      orbG.endFill();
-      orbG.x = wx;
-      orbG.y = wy;
-      this.breakoutLayer.addChild(orbG);
+      const canvasRect = this.canvas.getBoundingClientRect();
+      const fromClientX = canvasRect.left + (wx / this.width) * canvasRect.width;
+      const fromClientY = canvasRect.top + (wy / this.height) * canvasRect.height;
+      const tileSizePx = Math.min(
+        (this.cellW / this.width) * canvasRect.width,
+        (this.cellH / this.height) * canvasRect.height
+      ) * 0.84;
 
-      await new Promise(resolve => {
-        const orbStart = performance.now();
-        const orbDur = 380;
-        const targetTrailX = this.paddingX + ((targetSlotIdx - 0.5) / 12) * (this.width - this.paddingX * 2);
-        const targetTrailY = 8;
+      // Subtle launch flash & ripple on the Fisherman cell as his Ghost Trail Comet lifts off
+      this.addWaterRing(wx, wy, 130, 0xffe66d);
+      this.spawnSplashParticles(wx, wy, 18, '#FFE66D');
+      if (wildNode && window.gsap) {
+        window.gsap.fromTo(
+          wildNode.scale,
+          { x: 1.22, y: 1.22 },
+          { x: 1.0, y: 1.0, duration: 0.32, ease: 'power2.out' }
+        );
+      }
 
-        const cb = now => {
-          const t = Math.min(1, (now - orbStart) / orbDur);
-          const ease = t * t;
-          orbG.x = wx + (targetTrailX - wx) * ease;
-          orbG.y = wy + (targetTrailY - wy) * ease;
-          orbG.scale.set(1 - t * 0.35);
+      if (onWildAddedToTrail) {
+        await onWildAddedToTrail(targetSlotIdx, {
+          clientX: fromClientX,
+          clientY: fromClientY,
+          tileSize: tileSizePx
+        });
+      }
 
-          if (t >= 1) {
-            this.breakoutLayer.removeChild(orbG);
-            orbG.destroy();
-            this.customRenderCallbacks = this.customRenderCallbacks.filter(fn => fn !== cb);
-            if (onWildAddedToTrail) onWildAddedToTrail(targetSlotIdx);
-            resolve();
-          }
-        };
-        this.customRenderCallbacks.push(cb);
-      });
-
-      await new Promise(r => setTimeout(r, 220));
+      await new Promise(r => setTimeout(r, 160));
       if (wildNode && window.gsap) {
         window.gsap.to(wildNode.scale, { x: 1.0, y: 1.0, duration: 0.22 });
       }

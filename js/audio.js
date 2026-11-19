@@ -669,4 +669,168 @@ export class AudioEngine {
       osc.stop(now + 0.56);
     });
   }
+
+  /**
+   * Option 1B Ghost Trail Comet Whoosh + Rising Golden Sparkle Glissando
+   * Plays as the Fisherman portrait launches from the reel toward the stitched-leather progress belt!
+   */
+  playFishermanCometWhoosh() {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Airy rising golden comet whoosh (bandpass-swept white noise)
+    const sampleRate = this.ctx.sampleRate;
+    const dur = 0.62;
+    const buf = this.ctx.createBuffer(1, Math.floor(sampleRate * dur), sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.55;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buf;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 3.2;
+    filter.frequency.setValueAtTime(380, now);
+    filter.frequency.exponentialRampToValueAtTime(2400, now + dur * 0.88);
+
+    const nGain = this.ctx.createGain();
+    nGain.gain.setValueAtTime(0.001, now);
+    nGain.gain.linearRampToValueAtTime(0.24, now + 0.14);
+    nGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    noise.connect(filter);
+    filter.connect(nGain);
+    nGain.connect(this.sfxGain);
+    noise.start(now);
+    noise.stop(now + dur + 0.02);
+
+    // 2. Sparkling rising golden harp/bell comet trail glissando
+    const notes = [523.25, 659.25, 783.99, 987.77, 1318.51];
+    notes.forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      const t = now + i * 0.075;
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.03, t + 0.22);
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.linearRampToValueAtTime(0.14, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.30);
+    });
+  }
+
+  /**
+   * Leather Belt Slot Impact Slam + Harmonic Climbing Gold Chime (Option 1B arrival!)
+   */
+  playBeltSlotSlam(slotIdx = 1) {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Punchy saddle-leather impact thud
+    const thud = this.ctx.createOscillator();
+    const tGain = this.ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(165, now);
+    thud.frequency.exponentialRampToValueAtTime(48, now + 0.14);
+    tGain.gain.setValueAtTime(0.32, now);
+    tGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    thud.connect(tGain);
+    tGain.connect(this.sfxGain);
+    thud.start(now);
+    thud.stop(now + 0.17);
+
+    // 2. Climbing harmonic golden chime across each 4-slot segment (1 -> 2 -> 3 -> 4!)
+    const segPos = ((Math.max(1, slotIdx) - 1) % 4); // 0, 1, 2, 3
+    const baseFreqs = [587.33, 698.46, 880.0, 1174.66]; // D5, F5, A5, D6
+    const f = baseFreqs[segPos];
+    const chord = segPos === 3 ? [f, f * 1.25, f * 1.5] : [f, f * 1.5];
+
+    chord.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = idx === 0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.025);
+      g.gain.setValueAtTime(0.20 / (idx + 1), now + idx * 0.025);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.42 + idx * 0.05);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(now + idx * 0.025);
+      osc.stop(now + 0.48 + idx * 0.05);
+    });
+  }
+
+  /**
+   * Dramatic Lasso Near-Miss Slip-Away Swish (fish darts away just before loop closes!)
+   */
+  playLassoNearMiss() {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 0.25,
+        duration: 0.42,
+        rate: 1.28,
+        gainVal: 0.45
+      });
+    }
+
+    // Playful descending slip-away whistle/whoop
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(620, now);
+    osc.frequency.exponentialRampToValueAtTime(240, now + 0.28);
+    g.gain.setValueAtTime(0.14, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+    osc.connect(g);
+    g.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.32);
+  }
+
+  /**
+   * Dramatic Lasso Tug-of-War Rope Tension & Water Thrash
+   */
+  playLassoTensionCreak() {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 0.5,
+        duration: 0.55,
+        rate: 1.05,
+        gainVal: 0.55
+      });
+    }
+
+    // Rising tension hum during tug-of-war pull
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 650;
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.linearRampToValueAtTime(260, now + 0.42);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.11, now + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.46);
+    osc.connect(filt);
+    filt.connect(g);
+    g.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.48);
+  }
 }
