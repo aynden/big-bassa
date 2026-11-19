@@ -422,7 +422,7 @@ export class ReelRenderer {
     const dispTex = PIXI.Texture.from(dispCan);
     dispTex.baseTexture.wrapMode = PIXI.WRAP_MODES.REPEAT;
     this.displacementSprite = new PIXI.Sprite(dispTex);
-    this.displacementFilter = new PIXI.DisplacementFilter(this.displacementSprite, 14);
+    this.displacementFilter = new PIXI.DisplacementFilter(this.displacementSprite, 3.0);
   }
 
   _buildUnderwaterStage() {
@@ -632,18 +632,11 @@ export class ReelRenderer {
       sprite.scale.set(sFactor);
       node.baseSpriteScale = sFactor;
 
-      // Attach pre-allocated GLSL shaders on landed symbols (not blurred spinning strips)
+      // Attach subtle metallic Gold Shimmer sweep on premium Wild / Scatter / 100x+ Golden Fish
+      // (Stationary grid symbols stay crisp and wobble-free; thrash shader activates only when hooked!)
       if (!isSpinningDummy) {
-        const appliedFilters = [];
-        if ((cell.id === 'FISH' || cell.id === 'SCATTER') && this.swimFilters.length > 0) {
-          const swimIdx = Math.abs(col * 3 + row) % this.swimFilters.length;
-          appliedFilters.push(this.swimFilters[swimIdx]);
-        }
         if ((cell.id === 'WILD' || cell.id === 'SCATTER' || isGoldenTrophyFish) && this.goldShimmerFilter) {
-          appliedFilters.push(this.goldShimmerFilter);
-        }
-        if (appliedFilters.length > 0) {
-          sprite.filters = appliedFilters;
+          sprite.filters = [this.goldShimmerFilter];
         }
       }
 
@@ -901,9 +894,13 @@ export class ReelRenderer {
       }
 
       colObj.spinning = true;
+      colObj.spinStartTime = now;
+      colObj.kickDuration = turbo ? 35 : 85;
       colObj.offsetY = 0;
-      colObj.speed = turbo ? 2800 : isSuspenseReel ? 2550 : 2100;
-      colObj.blurFilter.blurY = turbo ? 18 : 14;
+      colObj.speed = 0;
+      colObj.targetSpeed = turbo ? 2850 : isSuspenseReel ? 2550 : 2150;
+      colObj.maxBlurY = turbo ? 14 : 10;
+      colObj.blurFilter.blurY = 0;
       colObj.stripNodes = stripNodes;
       colObj.stopTime = stopTime;
       colObj.isSuspenseReel = isSuspenseReel;
@@ -915,7 +912,7 @@ export class ReelRenderer {
             colObj.blurFilter.blurY = 0;
             this.grid[c] = targetGrid[c];
 
-            // Rebuild crisp final target column nodes and play elastic bounce!
+            // Rebuild crisp final target column nodes with silky-smooth damped spring landing!
             colObj.symbolsHolder.removeChildren();
             this.cellContainers[c] = [];
             for (let r = 0; r < this.rows; r++) {
@@ -923,15 +920,15 @@ export class ReelRenderer {
               const node = this._createSymbolNode(cell, c, r, false);
               node.x = 0;
               const finalY = r * this.cellH + this.cellH / 2;
-              node.y = finalY - 26;
+              node.y = finalY - 34;
               colObj.symbolsHolder.addChild(node);
               this.cellContainers[c][r] = node;
 
               if (window.gsap) {
                 window.gsap.to(node, {
                   y: finalY,
-                  duration: 0.34,
-                  ease: 'back.out(2.4)'
+                  duration: turbo ? 0.22 : 0.32,
+                  ease: 'back.out(1.28)'
                 });
               } else {
                 node.y = finalY;
@@ -956,13 +953,13 @@ export class ReelRenderer {
                 }
               }
 
-              // Dramatic scale punch on landed Scatter or Fisherman Wild!
+              // Clean pop-in scale punch on landed Scatter or Fisherman Wild!
               const specialNode = this.cellContainers[c][rowIdx];
               if (specialNode && window.gsap) {
                 window.gsap.fromTo(
                   specialNode.scale,
-                  { x: 1.32, y: 1.32 },
-                  { x: 1.0, y: 1.0, duration: 0.45, ease: 'elastic.out(1.2, 0.4)' }
+                  { x: 1.24, y: 1.24 },
+                  { x: 1.0, y: 1.0, duration: 0.36, ease: 'back.out(1.4)' }
                 );
               }
             }
@@ -1511,22 +1508,18 @@ export class ReelRenderer {
   update(dt, now) {
     const timeSec = now * 0.001;
 
-    // 1. Animate WebGL Underwater Displacement, Custom GLSL Voronoi Caustics, Fish Swim Wave & Gold Shimmer Shaders
+    // 1. Animate Gentle WebGL Underwater Caustics, Hooked Thrash & Gold Shimmer Shaders
     if (this.displacementSprite) {
-      this.displacementSprite.x += 28 * dt;
-      this.displacementSprite.y += 18 * dt;
+      this.displacementSprite.x += 12 * dt;
+      this.displacementSprite.y += 7 * dt;
     }
 
     const targetBonusMix = this.isFreeSpins ? 1.0 : 0.0;
     this.bonusMix += (targetBonusMix - this.bonusMix) * Math.min(1, dt * 3.0);
 
     if (this.causticsFilter) {
-      this.causticsFilter.uniforms.uTime = timeSec;
+      this.causticsFilter.uniforms.uTime = timeSec * 0.72;
       this.causticsFilter.uniforms.uBonusMix = this.bonusMix;
-    }
-
-    for (const sf of this.swimFilters) {
-      sf.uniforms.uTime = timeSec * 4.4;
     }
 
     if (this.hookedThrashFilter) {
@@ -1538,7 +1531,7 @@ export class ReelRenderer {
     }
 
     for (const beam of this.causticBeams) {
-      beam.sprite.x = beam.baseX + Math.sin(now * 0.0007 + beam.phase) * 50;
+      beam.sprite.x = beam.baseX + Math.sin(now * 0.00055 + beam.phase) * 35;
     }
 
     // 2. Screen shake
@@ -1554,7 +1547,7 @@ export class ReelRenderer {
     // 3. Rising water bubbles & ambient background fish
     for (const b of this.bubbles) {
       b.sprite.y -= b.speed * dt;
-      b.sprite.x = b.baseX + Math.sin(now * 0.0022 * b.wobbleSpeed + b.wobbleOffset) * 8;
+      b.sprite.x = b.baseX + Math.sin(now * 0.0018 * b.wobbleSpeed + b.wobbleOffset) * 6;
       if (b.sprite.y < this.paddingY - 15) {
         b.sprite.y = this.height - this.paddingY + 15;
       }
@@ -1562,12 +1555,12 @@ export class ReelRenderer {
 
     for (const bf of this.bgFish) {
       bf.sprite.x += bf.speed * dt;
-      bf.sprite.y = bf.baseY + Math.sin(now * 0.003 + bf.wobble) * 10;
+      bf.sprite.y = bf.baseY + Math.sin(now * 0.0022 + bf.wobble) * 8;
       if (bf.speed > 0 && bf.sprite.x > this.width + 70) bf.sprite.x = -70;
       if (bf.speed < 0 && bf.sprite.x < -70) bf.sprite.x = this.width + 70;
     }
 
-    // 4. Update spinning reels
+    // 4. Update spinning reels with silky kickback anticipation, smooth acceleration & velocity-matched blur
     const symbolKeys = Object.keys(SYMBOLS);
     let anyActiveSuspense = false;
     for (let c = 0; c < this.cols; c++) {
@@ -1578,36 +1571,58 @@ export class ReelRenderer {
         colObj.spotlight.visible = showSuspense;
         if (showSuspense) {
           anyActiveSuspense = true;
-          colObj.spotlight.alpha = 0.55 + Math.sin(now * 0.022) * 0.35;
+          colObj.spotlight.alpha = 0.52 + Math.sin(now * 0.018) * 0.30;
         }
 
-        colObj.offsetY += colObj.speed * dt;
-        if (colObj.offsetY >= this.cellH) {
-          colObj.offsetY -= this.cellH;
-          const popped = colObj.stripNodes.pop();
-          if (popped) {
-            colObj.symbolsHolder.removeChild(popped);
-            popped.destroy({ children: true });
+        const elapsed = now - (colObj.spinStartTime || now);
+        const kickDur = colObj.kickDuration || 80;
+        const targetSpd = colObj.targetSpeed || 2150;
+        const maxBlur = colObj.maxBlurY || 10;
+
+        if (elapsed < kickDur) {
+          // Subtle smooth upward kickback before launching downward
+          const kp = elapsed / kickDur;
+          const kickY = -Math.sin(kp * Math.PI) * 18;
+          colObj.blurFilter.blurY = 0;
+          for (let i = 0; i < colObj.stripNodes.length; i++) {
+            colObj.stripNodes[i].y = (i - 1) * this.cellH + this.cellH / 2 + kickY;
+          }
+        } else {
+          // Smooth velocity acceleration & proportional motion blur
+          const timeLeft = colObj.stopTime - now;
+          const desiredSpeed = timeLeft < 140 ? targetSpd * Math.max(0.45, timeLeft / 140) : targetSpd;
+          colObj.speed += (desiredSpeed - colObj.speed) * Math.min(1, dt * 16);
+          colObj.blurFilter.blurY = Math.max(0, (colObj.speed / targetSpd) * maxBlur);
+
+          colObj.offsetY += colObj.speed * dt;
+          if (colObj.offsetY >= this.cellH) {
+            colObj.offsetY -= this.cellH;
+            const popped = colObj.stripNodes.pop();
+            if (popped) {
+              colObj.symbolsHolder.removeChild(popped);
+              popped.destroy({ children: true });
+            }
+
+            const randId = symbolKeys[Math.floor(Math.random() * symbolKeys.length)];
+            const dummyCell = {
+              id: randId,
+              symbol: SYMBOLS[randId],
+              money: randId === 'FISH' ? { multiplier: 10, tier: 'medium' } : null
+            };
+            const newNode = this._createSymbolNode(dummyCell, c, -1, true);
+            colObj.symbolsHolder.addChild(newNode);
+            colObj.stripNodes.unshift(newNode);
           }
 
-          const randId = symbolKeys[Math.floor(Math.random() * symbolKeys.length)];
-          const dummyCell = {
-            id: randId,
-            symbol: SYMBOLS[randId],
-            money: randId === 'FISH' ? { multiplier: 10, tier: 'medium' } : null
-          };
-          const newNode = this._createSymbolNode(dummyCell, c, -1, true);
-          colObj.symbolsHolder.addChild(newNode);
-          colObj.stripNodes.unshift(newNode);
-        }
-
-        for (let i = 0; i < colObj.stripNodes.length; i++) {
-          colObj.stripNodes[i].y = (i - 1) * this.cellH + this.cellH / 2 + colObj.offsetY;
+          for (let i = 0; i < colObj.stripNodes.length; i++) {
+            colObj.stripNodes[i].y = (i - 1) * this.cellH + this.cellH / 2 + colObj.offsetY;
+          }
         }
 
         if (now >= colObj.stopTime) {
           colObj.spinning = false;
           colObj.offsetY = 0;
+          colObj.speed = 0;
           if (colObj.onFinished) {
             const fn = colObj.onFinished;
             colObj.onFinished = null;
@@ -1615,7 +1630,7 @@ export class ReelRenderer {
           }
         }
       } else {
-        // Organic idle swimming / breathing animation on landed frameless 3D cutouts!
+        // Rock-steady crisp symbols when stopped! Smooth gentle pulse ONLY on active winning payline symbols.
         for (let r = 0; r < this.rows; r++) {
           const node = this.cellContainers[c]?.[r];
           if (!node || !node.mainSprite) continue;
@@ -1625,39 +1640,19 @@ export class ReelRenderer {
           const isHighlighted = this.highlightedPositions.has(key);
 
           if (hasWins && !isHighlighted) {
-            node.alpha = 0.38;
+            node.alpha = 0.40;
           } else if (!hasWins && node.alpha < 0.9) {
-            // Keep alpha if dimmed during fish collection, otherwise 1
+            // Preserve dim during Fisherman reeling sweep
           }
 
           if (isHighlighted) {
-            const pulse = 1.09 + Math.sin(now * 0.011) * 0.06;
+            const smoothWave = 0.5 - 0.5 * Math.cos(now * 0.0085);
+            const pulse = 1.03 + smoothWave * 0.085;
             node.mainSprite.scale.set(node.baseSpriteScale * pulse);
-            node.mainSprite.rotation = Math.sin(now * 0.008) * 0.05;
-          } else if (node.cellData?.id === 'FISH') {
-            // Money fish gently swim and wag in the water current
-            const wag = Math.sin(now * 0.0055 + c * 1.4 + r);
-            node.mainSprite.scale.set(
-              node.baseSpriteScale * (1 + wag * 0.025),
-              node.baseSpriteScale * (1 - wag * 0.02)
-            );
-            node.mainSprite.rotation = wag * 0.035;
-          } else if (node.cellData?.id === 'DRAGONFLY') {
-            // Dragonfly hovers rapidly with high-frequency wing shimmer
-            const hover = Math.sin(now * 0.022 + c);
-            node.mainSprite.scale.set(node.baseSpriteScale * (1 + hover * 0.024));
-            node.mainSprite.rotation = hover * 0.038;
-          } else if (node.cellData?.id === 'TRUCK') {
-            // Monster truck idles with chunky suspension bounce
-            const rumble = Math.sin(now * 0.014 + c);
-            node.mainSprite.scale.set(
-              node.baseSpriteScale * (1 - rumble * 0.012),
-              node.baseSpriteScale * (1 + rumble * 0.018)
-            );
-            node.mainSprite.rotation = rumble * 0.018;
+            node.mainSprite.rotation = 0;
           } else {
-            const breathe = 1 + Math.sin(now * 0.0035 + c + r) * 0.015;
-            node.mainSprite.scale.set(node.baseSpriteScale * breathe);
+            // Completely still and razor-sharp when idle (zero wobble!)
+            node.mainSprite.scale.set(node.baseSpriteScale);
             node.mainSprite.rotation = 0;
           }
         }

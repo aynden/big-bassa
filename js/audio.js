@@ -635,4 +635,38 @@ export class AudioEngine {
       osc.stop(now + i * 0.09 + 0.44);
     });
   }
+
+  /**
+   * Heavy Metallic Iron Anchor Clang + Water Splash (ends Pre-Bonus Modifier Catch)
+   */
+  playAnchorClang() {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    if (this.buffers.splash) {
+      this._playBuffer('splash', {
+        offset: 0.9,
+        duration: 0.75,
+        rate: 0.82,
+        gainVal: 0.85
+      });
+    }
+
+    // Metallic inharmonic iron clank partials
+    const partials = [185, 293, 468, 712];
+    partials.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = idx % 2 === 0 ? 'triangle' : 'square';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.88, now + 0.52);
+      g.gain.setValueAtTime(0.22 / (idx + 1), now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(now);
+      osc.stop(now + 0.56);
+    });
+  }
 }

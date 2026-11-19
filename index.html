@@ -97,13 +97,23 @@
         </div>
       </div>
 
-      <!-- Center Column: Free Spins Multiplier Trail + 5x3 Underwater Reel Canvas -->
+      <!-- Center Column: Base Game Crest (Base) OR Free Spins Multiplier Trail (Bonus Only) + 5x3 Canvas -->
       <div class="center-reel-column">
-        <!-- Progressive 4-Level Fisherman Multiplier Meter (12 Wild Slots) -->
-        <div id="freespins-trail-bar" class="freespins-trail-bar">
+        <!-- Base Game Top Crest (Visible in Base Game only, hidden during Free Spins) -->
+        <div id="base-game-header" class="base-game-header">
+          <img class="crest-bass crest-bass-left" src="assets/images/symbols/fish_golden.png" alt="" />
+          <div class="crest-title-wrap">
+            <span class="crest-big-bass">BIG BASS</span>
+            <span class="crest-splash">SPLASH</span>
+          </div>
+          <img class="crest-bass crest-bass-right" src="assets/images/symbols/fish_golden.png" alt="" />
+        </div>
+
+        <!-- Progressive 4-Level Fisherman Multiplier Meter (12 Wild Slots — Visible ONLY in Free Spins Bonus!) -->
+        <div id="freespins-trail-bar" class="freespins-trail-bar hidden">
           <div class="trail-info-left">
-            <span id="fs-mode-badge" class="fs-mode-badge">BASE GAME • 10 LINES</span>
-            <span id="fs-counter-text" class="fs-counter-text">COLLECT 4 WILDS IN FREE SPINS FOR +10 SPINS &amp; UP TO 10×!</span>
+            <span id="fs-mode-badge" class="fs-mode-badge">FREE SPINS: 10 LEFT • LEVEL 1 (1×)</span>
+            <span id="fs-counter-text" class="fs-counter-text">COLLECT 4 WILDS FOR +10 SPINS &amp; UP TO 10×!</span>
           </div>
 
           <div class="trail-meter-track">
@@ -247,48 +257,95 @@
       </div>
     </footer>
 
-    <!-- Pre-Bonus 5-Modifier Lasso Catch Modal -->
-    <div id="modifier-lasso-modal" class="overlay-modal hidden">
-      <div class="modal-card lasso-modal-card">
-        <div class="lasso-header-badge">FREE SPINS TRIGGERED!</div>
-        <h2 id="lasso-title" class="lasso-title">10 FREE SPINS AWARDED!</h2>
-        <p class="lasso-subtitle">Watch the Fisherman cast his lasso to catch bonus modifiers from the lake...</p>
-
-        <div class="lasso-canvas-container">
-          <canvas id="lasso-fishing-canvas" width="660" height="190"></canvas>
+    <!-- PHASE 1: Authentic Big Bass Splash Underwater Circle-Swim Lasso & Anchor Catch Arena -->
+    <div id="prebonus-lasso-overlay" class="prebonus-lasso-overlay hidden">
+      <!-- Left Vertical Column of 5 Authentic Circular Metallic Modifier Medallions -->
+      <div class="lasso-medallions-rail" id="lasso-medallions-rail">
+        <div class="mod-medallion" data-mod-id="MORE_DYNAMITE" title="More Dynamites, Hooks & Bazookas">
+          <span class="medallion-plus">+</span>
+          <span class="medallion-icon">🪝</span>
         </div>
+        <div class="mod-medallion" data-mod-id="START_LEVEL_2" title="Start from Level 2 (2×)">
+          <span class="medallion-arrows">»</span>
+          <span class="medallion-label-sm">LEVEL</span>
+          <span class="medallion-big-num">2</span>
+        </div>
+        <div class="mod-medallion" data-mod-id="EXTRA_SPINS" title="+2 Extra Free Spins">
+          <span class="medallion-big-num">+2</span>
+          <span class="medallion-label-xs">FREE<br/>SPINS</span>
+        </div>
+        <div class="mod-medallion" data-mod-id="MORE_FISH" title="More Fish Money Symbols">
+          <span class="medallion-plus">+</span>
+          <img class="medallion-img" src="assets/images/symbols/fish_single.png" alt="More Fish" />
+        </div>
+        <div class="mod-medallion" data-mod-id="MORE_FISHERMAN" title="More Wild Fishermen">
+          <span class="medallion-plus">+</span>
+          <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman.png" alt="More Fishermen" />
+        </div>
+      </div>
 
-        <div class="modifiers-wheel-grid">
-          <div class="modifier-card" data-mod-id="MORE_FISH">
-            <span class="mod-icon">🐟</span>
-            <span class="mod-title">MORE FISH!</span>
-            <span class="mod-desc">Extra Cash Fish on reels</span>
+      <!-- Top Floating Callout Banner -->
+      <div class="lasso-callout-banner">
+        <span id="lasso-phase-pill" class="lasso-phase-pill">BONUS MODIFIER CATCH</span>
+        <h2 id="lasso-callout-text" class="lasso-callout-text">CATCHING MODIFIERS FROM THE LAKE...</h2>
+      </div>
+
+      <!-- Full-Stage High-DPI Underwater Seabed Circle-Swim & Lasso Canvas -->
+      <canvas id="lasso-circle-canvas" width="1280" height="720"></canvas>
+    </div>
+
+    <!-- PHASE 2: Authentic Vintage Parchment "CONGRATULATIONS! XX FREE SPINS!" Poster Screen -->
+    <div id="bonus-intro-poster-modal" class="overlay-modal bonus-poster-overlay hidden">
+      <div id="bonus-poster-card" class="bonus-poster-card" role="button" tabindex="0" aria-label="Start Free Spins">
+        <div class="poster-inner-frame">
+          <div class="poster-top-ribbon">CONGRATULATIONS!</div>
+          <div id="poster-spins-headline" class="poster-spins-headline">10 FREE SPINS!</div>
+
+          <div class="poster-showcase-row">
+            <div class="poster-wild-frame">
+              <img src="assets/images/symbols/wild_fisherman.png" alt="Fisherman Wild" />
+            </div>
+
+            <div class="poster-catches-word">CATCHES</div>
+
+            <div class="poster-fish-cluster">
+              <img class="cluster-fish cluster-fish-gold" src="assets/images/symbols/fish_golden.png" alt="Golden Bass" />
+              <img class="cluster-fish cluster-fish-shoal" src="assets/images/symbols/fish_money.png" alt="Bass Shoal" />
+              <img class="cluster-fish cluster-fish-single" src="assets/images/symbols/fish_single.png" alt="Money Bass" />
+            </div>
           </div>
-          <div class="modifier-card" data-mod-id="MORE_FISHERMAN">
-            <span class="mod-icon">🤠</span>
-            <span class="mod-title">MORE FISHERMEN!</span>
-            <span class="mod-desc">Extra Wild Collectors</span>
+
+          <!-- Bottom Row of the 5 Circular Medallions (Lit Gold = Caught, Silver/Grey = Not Caught) -->
+          <div id="poster-medallions-row" class="poster-medallions-row">
+            <div class="poster-medallion" data-mod-id="MORE_DYNAMITE" title="More Dynamites, Hooks & Bazookas">
+              <span class="medallion-plus">+</span>
+              <span class="medallion-icon">🪝</span>
+            </div>
+            <div class="poster-medallion" data-mod-id="START_LEVEL_2" title="Start from Level 2 (2×)">
+              <span class="medallion-arrows">»</span>
+              <span class="medallion-label-sm">LEVEL</span>
+              <span class="medallion-big-num">2</span>
+            </div>
+            <div class="poster-medallion" data-mod-id="EXTRA_SPINS" title="+2 Extra Free Spins">
+              <span class="medallion-big-num">+2</span>
+              <span class="medallion-label-xs">FREE<br/>SPINS</span>
+            </div>
+            <div class="poster-medallion" data-mod-id="MORE_FISH" title="More Fish Money Symbols">
+              <span class="medallion-plus">+</span>
+              <img class="medallion-img" src="assets/images/symbols/fish_single.png" alt="More Fish" />
+            </div>
+            <div class="poster-medallion" data-mod-id="MORE_FISHERMAN" title="More Wild Fishermen">
+              <span class="medallion-plus">+</span>
+              <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman.png" alt="More Fishermen" />
+            </div>
           </div>
-          <div class="modifier-card" data-mod-id="MORE_DYNAMITE">
-            <span class="mod-icon">🧨</span>
-            <span class="mod-title">DYNAMITE, HOOKS &amp; BAZOOKAS!</span>
-            <span class="mod-desc">Boosted rescue features</span>
-          </div>
-          <div class="modifier-card" data-mod-id="START_LEVEL_2">
-            <span class="mod-icon">⭐</span>
-            <span class="mod-title">START FROM LEVEL 2!</span>
-            <span class="mod-desc">Begin at 2× Multiplier</span>
-          </div>
-          <div class="modifier-card" data-mod-id="EXTRA_SPINS">
-            <span class="mod-icon">🔄</span>
-            <span class="mod-title">+2 EXTRA SPINS!</span>
-            <span class="mod-desc">+2 now &amp; +2 per retrigger</span>
+
+          <div class="poster-cta-wrap">
+            <button id="btn-start-freespins" class="poster-start-btn" type="button">
+              CLICK ANYWHERE TO START FREE SPINS 🎣
+            </button>
           </div>
         </div>
-
-        <button id="btn-start-freespins" class="primary-action-btn hidden" type="button">
-          START FREE SPINS 🎣
-        </button>
       </div>
     </div>
 
