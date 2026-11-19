@@ -15,11 +15,13 @@
   <div id="game-stage" class="game-stage">
     <div class="lake-backdrop"></div>
     <div class="water-surface-shimmer"></div>
+    <div id="celebration-dimmer" class="celebration-dimmer hidden" aria-hidden="true"></div>
+    <canvas id="three-vfx-canvas" class="three-vfx-canvas" aria-hidden="true"></canvas>
 
     <!-- Top Utility Bar: Brand, Token Wallet Manager & Dev/Cheat Drawer Trigger -->
     <header class="top-utility-bar">
       <div class="brand-badge">
-        <span class="provider-tag">REEL KINGDOM • PRAGMATIC PLAY TRIBUTE</span>
+        <span class="provider-tag">REEL KINGDOM • PIXIJS + THREE.JS 3D</span>
         <h1 class="game-title-sr">Big Bass Splash</h1>
       </div>
 
@@ -36,6 +38,10 @@
 
         <button id="btn-next-track" class="chip-btn chip-btn-accent" type="button" title="Switch Background Music Track">
           🎵 Track: Bama Country
+        </button>
+
+        <button id="btn-toggle-3d" class="chip-btn" type="button" title="Toggle Real-Time Three.js 3D Coins & Lighting">
+          ✨ 3D FX: ON
         </button>
 
         <button id="btn-toggle-cheat" class="cheat-toggle-btn" type="button" title="Force Features & Test Mode">
@@ -71,7 +77,7 @@
       <!-- Left Column: Big Bass Splash Logo & Buy Free Spins Wooden Signboard -->
       <div class="left-side-column">
         <div class="big-bass-logo-card">
-          <div class="logo-fish-badge">🐟</div>
+          <img class="logo-fish-img" src="assets/images/symbols/fish_golden.png" alt="Big Bass Splash" />
           <div class="logo-text-stack">
             <span class="logo-big-bass">BIG BASS</span>
             <span class="logo-splash">SPLASH</span>
@@ -299,13 +305,13 @@
       </div>
     </div>
 
-    <!-- Big Win / Mega Win / Free Spins Summary Celebration Overlay -->
-    <div id="celebration-modal" class="overlay-modal hidden">
-      <div class="modal-card celebration-card">
+    <!-- Big Win / Mega Win / Free Spins Summary Celebration Overlay (Frameless over Three.js 3D Trophy & Coin Fountains) -->
+    <div id="celebration-modal" class="overlay-modal celebration-modal-overlay hidden">
+      <div class="celebration-card-frameless">
         <div id="celebration-tier-badge" class="celebration-tier-badge">BIG WIN!</div>
         <div id="celebration-amount" class="celebration-amount">$0.00</div>
         <div id="celebration-subtext" class="celebration-subtext"></div>
-        <button id="btn-dismiss-celebration" class="primary-action-btn" type="button">COLLECT 💰</button>
+        <button id="btn-dismiss-celebration" class="primary-action-btn celebration-collect-btn" type="button">COLLECT 💰</button>
       </div>
     </div>
 

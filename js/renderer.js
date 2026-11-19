@@ -23,9 +23,10 @@ import * as PIXI from './vendor/pixi.min.mjs';
 import { GAME_CONFIG, SYMBOLS } from './config.js';
 
 export class ReelRenderer {
-  constructor(canvas, audio) {
+  constructor(canvas, audio, vfx3d = null) {
     this.canvas = canvas;
     this.audio = audio;
+    this.vfx3d = vfx3d;
 
     this.width = 1200;
     this.height = 690;
@@ -54,7 +55,7 @@ export class ReelRenderer {
     this.rootContainer = new PIXI.Container();
     this.app.stage.addChild(this.rootContainer);
 
-    // Layer 1: Translucent underwater reel stage backing, caustics & ambient swimming fish
+    // Layer 1: Translucent underwater reel stage backing, GLSL caustics & ambient swimming fish
     this.waterStageLayer = new PIXI.Container();
     this.rootContainer.addChild(this.waterStageLayer);
 
@@ -102,6 +103,15 @@ export class ReelRenderer {
     this.highlightedPositions = new Set();
     this.collectedFishSet = new Set();
     this.activeFishermanState = null;
+    this.isFreeSpins = false;
+    this.bonusMix = 0;
+    this.riserActive = false;
+
+    // Custom pre-allocated GLSL filters (zero per-spin allocations)
+    this.causticsFilter = null;
+    this.swimFilters = [];
+    this.hookedThrashFilter = null;
+    this.goldShimmerFilter = null;
 
     // Animated ambient objects
     this.bubbles = [];
@@ -116,8 +126,134 @@ export class ReelRenderer {
     this.shakeMagnitude = 0;
   }
 
+  _toScreenNorm(px, py) {
+    if (this.vfx3d) {
+      return this.vfx3d.canvasCoordsToScreenNorm(this.canvas, px, py);
+    }
+    return { nx: px / this.width, ny: py / this.height };
+  }
+
+  setFreeSpinsMode(active) {
+    this.isFreeSpins = active;
+    if (this.vfx3d) {
+      this.vfx3d.setFreeSpinsMode(active);
+    }
+  }
+
   /**
-   * Load all transparent PNG cutouts + generate procedural 3D frameless Royals & displacement map
+   * Pre-allocate Custom GLSL Shaders (Underwater Voronoi Caustics, Fish Swim Wave Rig, Metallic Gold Shimmer)
+   */
+  _initCustomShaders() {
+    // 1. Underwater Caustics + Volumetric Sunbeams GLSL Shader
+    const causticsFrag = `
+      varying vec2 vTextureCoord;
+      uniform sampler2D uSampler;
+      uniform float uTime;
+      uniform float uBonusMix;
+
+      float causticPattern(vec2 uv, float t) {
+        vec2 p = uv * 7.2;
+        float c = 0.0;
+        c += sin(p.x * 1.45 + t * 1.25 + sin(p.y * 1.65 - t * 0.95));
+        c += sin(p.y * 1.85 - t * 1.15 + cos(p.x * 1.35 + t * 0.82));
+        c += sin((p.x + p.y) * 1.25 + t * 1.45);
+        return pow(clamp(abs(c) / 3.0, 0.0, 1.0), 2.3);
+      }
+
+      void main(void) {
+        vec4 base = texture2D(uSampler, vTextureCoord);
+        float caust = causticPattern(vTextureCoord, uTime);
+        float rayCoord = vTextureCoord.x * 5.6 + vTextureCoord.y * 1.4;
+        float sunRays = pow(max(0.0, sin(rayCoord + sin(uTime * 0.42) * 0.65)), 3.2) * (1.0 - vTextureCoord.y * 0.6);
+
+        vec3 baseTint = vec3(0.05, 0.85, 1.0);
+        vec3 bonusTint = vec3(1.0, 0.78, 0.25);
+        vec3 rayColor = mix(baseTint, bonusTint, uBonusMix);
+
+        vec3 lightAdd = rayColor * (caust * 0.19 + sunRays * 0.22);
+        gl_FragColor = vec4(base.rgb + lightAdd * base.a, base.a);
+      }
+    `;
+    try {
+      this.causticsFilter = new PIXI.Filter(undefined, causticsFrag, {
+        uTime: 0,
+        uBonusMix: 0
+      });
+    } catch (err) {
+      console.warn('Caustics shader fallback:', err);
+    }
+
+    // 2. Spine-style Fish Swimming Wave Deformation GLSL Shader (4 staggered phases + 1 rapid thrash filter)
+    const fishSwimFrag = `
+      varying vec2 vTextureCoord;
+      uniform sampler2D uSampler;
+      uniform float uTime;
+      uniform float uAmplitude;
+      uniform float uFrequency;
+      uniform float uPhase;
+
+      void main(void) {
+        vec2 uv = vTextureCoord;
+        float wave = sin(uv.x * uFrequency - uTime + uPhase) * uAmplitude;
+        uv.y += wave;
+        if (uv.y < 0.0 || uv.y > 1.0 || uv.x < 0.0 || uv.x > 1.0) {
+          gl_FragColor = vec4(0.0);
+        } else {
+          gl_FragColor = texture2D(uSampler, uv);
+        }
+      }
+    `;
+    try {
+      this.swimFilters = [0, 1.55, 3.1, 4.65].map(phase => {
+        const f = new PIXI.Filter(undefined, fishSwimFrag, {
+          uTime: 0,
+          uAmplitude: 0.011,
+          uFrequency: 7.5,
+          uPhase: phase
+        });
+        f.padding = 12;
+        return f;
+      });
+
+      this.hookedThrashFilter = new PIXI.Filter(undefined, fishSwimFrag, {
+        uTime: 0,
+        uAmplitude: 0.028,
+        uFrequency: 11.5,
+        uPhase: 0
+      });
+      this.hookedThrashFilter.padding = 18;
+    } catch (err) {
+      console.warn('FishSwim shader fallback:', err);
+    }
+
+    // 3. Metallic Specular Gold Shimmer Sweep Shader (for Wild Fisherman, Scatter Bass, and Golden Trophy Fish)
+    const goldShimmerFrag = `
+      varying vec2 vTextureCoord;
+      uniform sampler2D uSampler;
+      uniform float uTime;
+      uniform float uIntensity;
+
+      void main(void) {
+        vec4 tex = texture2D(uSampler, vTextureCoord);
+        float sweepPos = mod(uTime * 0.78, 2.85) - 0.75;
+        float diag = (vTextureCoord.x * 0.85 + vTextureCoord.y * 0.55);
+        float band = smoothstep(0.18, 0.0, abs(diag - sweepPos));
+        vec3 shimmer = vec3(1.0, 0.94, 0.68) * band * uIntensity * tex.a;
+        gl_FragColor = vec4(tex.rgb + shimmer, tex.a);
+      }
+    `;
+    try {
+      this.goldShimmerFilter = new PIXI.Filter(undefined, goldShimmerFrag, {
+        uTime: 0,
+        uIntensity: 0.55
+      });
+    } catch (err) {
+      console.warn('GoldShimmer shader fallback:', err);
+    }
+  }
+
+  /**
+   * Load all transparent PNG cutouts + generate procedural 3D frameless Royals & GLSL shaders
    */
   async loadAssets() {
     const toLoad = [];
@@ -147,6 +283,7 @@ export class ReelRenderer {
       )
     );
 
+    this._initCustomShaders();
     this._generateFrameless3DRoyalTextures();
     this._generateBubbleAndParticleTextures();
     this._buildUnderwaterStage();
@@ -289,16 +426,18 @@ export class ReelRenderer {
   }
 
   _buildUnderwaterStage() {
-    // 1. Subtle dark-turquoise glass backing behind the 5x3 grid so symbols pop against the canyon lake
+    // 1. Dark-turquoise underwater glass backing with real-time GLSL Voronoi Caustics & Volumetric Sunbeams!
     const glass = new PIXI.Graphics();
-    glass.beginFill(0x032238, 0.42);
+    glass.beginFill(0x032238, 0.48);
     glass.drawRoundedRect(this.paddingX, this.paddingY, this.gridWidth, this.gridHeight, 22);
     glass.endFill();
     this.waterStageLayer.addChild(glass);
 
-    // Attach WebGL Underwater Displacement Shader to the water stage layer
+    // Attach WebGL Underwater Displacement + Custom GLSL Caustics Shader to the water stage layer
     this.waterStageLayer.addChild(this.displacementSprite);
-    this.waterStageLayer.filters = [this.displacementFilter];
+    const stageFilters = [this.displacementFilter];
+    if (this.causticsFilter) stageFilters.push(this.causticsFilter);
+    this.waterStageLayer.filters = stageFilters;
 
     // 2. Animated Underwater Caustic God-Rays
     for (let i = 0; i < 5; i++) {
@@ -374,13 +513,14 @@ export class ReelRenderer {
       }
     }
 
-    // 5. Sleek Top & Bottom Wood-and-Brass Horizontal Bars (matching the real game's open sides!)
+    // 5. Ornate Metallic Brass & Gold Double Frame
     const borderG = new PIXI.Graphics();
-    // Outer subtle rounded frame
-    borderG.lineStyle(5, 0xffe07d, 0.75);
+    borderG.lineStyle(6, 0xffe484, 0.85);
     borderG.drawRoundedRect(this.paddingX, this.paddingY, this.gridWidth, this.gridHeight, 22);
-    borderG.lineStyle(2, 0x784906, 0.9);
-    borderG.drawRoundedRect(this.paddingX - 3, this.paddingY - 3, this.gridWidth + 6, this.gridHeight + 6, 24);
+    borderG.lineStyle(2.5, 0x6b3d04, 0.95);
+    borderG.drawRoundedRect(this.paddingX - 4, this.paddingY - 4, this.gridWidth + 8, this.gridHeight + 8, 25);
+    borderG.lineStyle(1.5, 0x80f2ff, 0.45);
+    borderG.drawRoundedRect(this.paddingX + 4, this.paddingY + 4, this.gridWidth - 8, this.gridHeight - 8, 19);
     this.frameAndBubblesLayer.addChild(borderG);
   }
 
@@ -396,11 +536,13 @@ export class ReelRenderer {
       blurFilter.blurY = 0;
       colContainer.filters = [blurFilter];
 
-      // Golden Suspense Spotlight behind column (for 3rd Scatter anticipation)
+      // Golden-Cyan Suspense Vortex Spotlight behind column (for 3rd Scatter anticipation)
       const spotlight = new PIXI.Graphics();
-      spotlight.beginFill(0xffd700, 0.26);
+      spotlight.beginFill(0xffd700, 0.28);
       spotlight.drawRect(-this.cellW / 2, 0, this.cellW, this.gridHeight);
       spotlight.endFill();
+      spotlight.lineStyle(4, 0xfff080, 0.85);
+      spotlight.drawRect(-this.cellW / 2 + 2, 2, this.cellW - 4, this.gridHeight - 4);
       spotlight.visible = false;
       colContainer.addChild(spotlight);
 
@@ -425,9 +567,9 @@ export class ReelRenderer {
   }
 
   /**
-   * Create a PixiJS display container for a single symbol cell (frameless 3D cutout + dynamic Fish Money badge)
+   * Create a PixiJS display container for a single symbol cell (frameless 3D cutout + GLSL swim/shimmer shaders + Fish Money badge)
    */
-  _createSymbolNode(cell, col, row) {
+  _createSymbolNode(cell, col, row, isSpinningDummy = false) {
     const node = new PIXI.Container();
     node.cellData = cell;
     node.gridCol = col;
@@ -438,12 +580,14 @@ export class ReelRenderer {
     // Choose texture & natural scale
     let tex = this.textures[cell.id];
     let baseScale = 1.0;
+    let isGoldenTrophyFish = false;
 
     if (cell.id === 'FISH' && cell.money) {
       const mult = cell.money.multiplier;
       if (mult >= 100 && this.textures['FISH_GOLDEN']) {
         tex = this.textures['FISH_GOLDEN'];
         baseScale = 1.12;
+        isGoldenTrophyFish = true;
       } else if (mult >= 25 && this.textures['FISH_SHOAL']) {
         tex = this.textures['FISH_SHOAL'];
         baseScale = 1.02;
@@ -487,6 +631,22 @@ export class ReelRenderer {
       const sFactor = targetDim / Math.max(tex.width || 256, tex.height || 256);
       sprite.scale.set(sFactor);
       node.baseSpriteScale = sFactor;
+
+      // Attach pre-allocated GLSL shaders on landed symbols (not blurred spinning strips)
+      if (!isSpinningDummy) {
+        const appliedFilters = [];
+        if ((cell.id === 'FISH' || cell.id === 'SCATTER') && this.swimFilters.length > 0) {
+          const swimIdx = Math.abs(col * 3 + row) % this.swimFilters.length;
+          appliedFilters.push(this.swimFilters[swimIdx]);
+        }
+        if ((cell.id === 'WILD' || cell.id === 'SCATTER' || isGoldenTrophyFish) && this.goldShimmerFilter) {
+          appliedFilters.push(this.goldShimmerFilter);
+        }
+        if (appliedFilters.length > 0) {
+          sprite.filters = appliedFilters;
+        }
+      }
+
       node.addChild(sprite);
       node.mainSprite = sprite;
     }
@@ -596,6 +756,18 @@ export class ReelRenderer {
       }
     }
     this._drawCurrentPaylineLaser();
+
+    // Launch real-time Three.js 3D gold coins straight out of the winning symbols!
+    if (this.vfx3d && this.activeLineWins.length > 0) {
+      const topWin = this.activeLineWins[0];
+      const midPos = topWin.positions[Math.floor(topWin.positions.length / 2)] || topWin.positions[0];
+      const px = this.paddingX + midPos.col * this.cellW + this.cellW / 2;
+      const py = this.paddingY + midPos.row * this.cellH + this.cellH / 2;
+      const { nx, ny } = this._toScreenNorm(px, py);
+      const totalPayoutMult = this.activeLineWins.reduce((s, w) => s + (w.multiplier || 1), 0);
+      const coinCount = Math.min(38, Math.max(8, Math.round(totalPayoutMult * 3.5)));
+      this.vfx3d.burstCoins(nx, ny, coinCount, totalPayoutMult >= 10 ? 1.15 : 0.85);
+    }
   }
 
   startLoop() {
@@ -722,7 +894,7 @@ export class ReelRenderer {
           symbol: SYMBOLS[randId],
           money: randId === 'FISH' ? { multiplier: 10, tier: 'medium' } : null
         };
-        const node = this._createSymbolNode(dummyCell, c, r);
+        const node = this._createSymbolNode(dummyCell, c, r, true);
         node.y = r * this.cellH + this.cellH / 2;
         colObj.symbolsHolder.addChild(node);
         stripNodes.push(node);
@@ -748,7 +920,7 @@ export class ReelRenderer {
             this.cellContainers[c] = [];
             for (let r = 0; r < this.rows; r++) {
               const cell = targetGrid[c][r];
-              const node = this._createSymbolNode(cell, c, r);
+              const node = this._createSymbolNode(cell, c, r, false);
               node.x = 0;
               const finalY = r * this.cellH + this.cellH / 2;
               node.y = finalY - 26;
@@ -773,6 +945,17 @@ export class ReelRenderer {
               this.addWaterRing(sx, sy, 125, hasScatterInCol ? 0x00e5ff : 0xffd700);
               this.spawnSplashParticles(sx, sy, 30, hasScatterInCol ? '#80F5FF' : '#FFD700');
 
+              // Fire 3D shockwave + 3D gold coins on Wild / Scatter impact!
+              if (this.vfx3d) {
+                const { nx, ny } = this._toScreenNorm(sx, sy);
+                this.vfx3d.spawnShockwave(nx, ny, hasWildInCol ? 0xffd700 : 0x00e5ff, 3.3);
+                if (hasWildInCol) {
+                  this.vfx3d.burstCoins(nx, ny, 14, 0.9);
+                } else {
+                  this.vfx3d.burstSparks(nx, ny, 22, 1.1);
+                }
+              }
+
               // Dramatic scale punch on landed Scatter or Fisherman Wild!
               const specialNode = this.cellContainers[c][rowIdx];
               if (specialNode && window.gsap) {
@@ -791,7 +974,14 @@ export class ReelRenderer {
       );
     }
 
-    return Promise.all(promises);
+    return Promise.all(promises).finally(() => {
+      if (this.riserActive) {
+        this.riserActive = false;
+        if (this.audio && typeof this.audio.stopAnticipationRiser === 'function') {
+          this.audio.stopAnticipationRiser();
+        }
+      }
+    });
   }
 
   /**
@@ -861,6 +1051,11 @@ export class ReelRenderer {
             this.triggerScreenShake(0.35, 14);
             this.addWaterRing(targetX, targetY, 150, 0xffd700);
             this.spawnSplashParticles(targetX, targetY, 45, '#FFD700');
+            if (this.vfx3d) {
+              const { nx, ny } = this._toScreenNorm(targetX, targetY);
+              this.vfx3d.spawnShockwave(nx, ny, 0xffd700, 4.0);
+              this.vfx3d.burstCoins(nx, ny, 20, 1.0);
+            }
             this.audio.playReelStop(col, true);
           }
         }
@@ -899,7 +1094,7 @@ export class ReelRenderer {
   }
 
   /**
-   * Burning-Fuse Dynamite & Bazooka Missile Rescue Animations
+   * Real-Time 3D Tumbling Dynamite & Bazooka Rocket Rescue Animations (Three.js + PixiJS Shockwave)
    */
   async playRescueExplosion(event) {
     const isDynamite = event.type === 'RESCUE_DYNAMITE';
@@ -910,64 +1105,88 @@ export class ReelRenderer {
       const tx = this.paddingX + target.col * this.cellW + this.cellW / 2;
       const ty = this.paddingY + target.row * this.cellH + this.cellH / 2;
 
-      const projG = new PIXI.Graphics();
-      this.breakoutLayer.addChild(projG);
+      if (this.vfx3d && this.vfx3d.enabled) {
+        const startNorm = isDynamite
+          ? this._toScreenNorm(this.width / 2, this.height + 20)
+          : this._toScreenNorm(-20, ty + (Math.random() - 0.5) * 60);
+        const endNorm = this._toScreenNorm(tx, ty);
+        await this.vfx3d.launch3DProjectile(
+          isDynamite ? 'DYNAMITE' : 'BAZOOKA',
+          startNorm.nx,
+          startNorm.ny,
+          endNorm.nx,
+          endNorm.ny,
+          isDynamite ? 440 : 350
+        );
 
-      await new Promise(resolve => {
-        const startX = isDynamite ? this.width / 2 : -40;
-        const startY = isDynamite ? this.height + 30 : ty + (Math.random() - 0.5) * 80;
-        const startTime = performance.now();
-        const dur = isDynamite ? 420 : 340;
+        this.grid[target.col][target.row] = target.cell;
+        this._rebuildStaticGridNodes();
+        this.audio.playExplosion();
+        this.triggerScreenShake(0.32, 16);
+        this.addWaterRing(tx, ty, 140, 0xff8a00);
+        this.spawnSplashParticles(tx, ty, 42, '#FF9500');
+        this.vfx3d.burstCoins(endNorm.nx, endNorm.ny, 10, 0.85);
+      } else {
+        // Fallback 2D WebGL projectile if Three.js is unavailable
+        const projG = new PIXI.Graphics();
+        this.breakoutLayer.addChild(projG);
 
-        const cb = now => {
-          const t = Math.min(1, (now - startTime) / dur);
-          const curX = startX + (tx - startX) * t;
-          const curY = startY + (ty - startY) * t - (isDynamite ? Math.sin(t * Math.PI) * 190 : 0);
+        await new Promise(resolve => {
+          const startX = isDynamite ? this.width / 2 : -40;
+          const startY = isDynamite ? this.height + 30 : ty + (Math.random() - 0.5) * 80;
+          const startTime = performance.now();
+          const dur = isDynamite ? 420 : 340;
 
-          projG.clear();
-          projG.x = curX;
-          projG.y = curY;
-          projG.rotation = t * Math.PI * (isDynamite ? 3.5 : 0);
+          const cb = now => {
+            const t = Math.min(1, (now - startTime) / dur);
+            const curX = startX + (tx - startX) * t;
+            const curY = startY + (ty - startY) * t - (isDynamite ? Math.sin(t * Math.PI) * 190 : 0);
 
-          if (isDynamite) {
-            projG.lineStyle(2.5, 0xffd700, 1);
-            projG.beginFill(0xd91e18, 1);
-            projG.drawRoundedRect(-14, -26, 28, 52, 6);
-            projG.endFill();
-            projG.beginFill(0xfff200, 1);
-            projG.drawCircle(6, -38, 7);
-            projG.endFill();
-          } else {
-            projG.beginFill(0xff6b00, 1);
-            projG.drawCircle(-26, 0, 12);
-            projG.endFill();
-            projG.beginFill(0x3a4a5e, 1);
-            projG.drawRoundedRect(-20, -10, 40, 20, 6);
-            projG.endFill();
-            projG.beginFill(0xff2e2e, 1);
-            projG.moveTo(16, -11);
-            projG.lineTo(34, 0);
-            projG.lineTo(16, 11);
-            projG.closePath();
-            projG.endFill();
-          }
+            projG.clear();
+            projG.x = curX;
+            projG.y = curY;
+            projG.rotation = t * Math.PI * (isDynamite ? 3.5 : 0);
 
-          if (t >= 1) {
-            this.breakoutLayer.removeChild(projG);
-            projG.destroy();
-            this.customRenderCallbacks = this.customRenderCallbacks.filter(fn => fn !== cb);
+            if (isDynamite) {
+              projG.lineStyle(2.5, 0xffd700, 1);
+              projG.beginFill(0xd91e18, 1);
+              projG.drawRoundedRect(-14, -26, 28, 52, 6);
+              projG.endFill();
+              projG.beginFill(0xfff200, 1);
+              projG.drawCircle(6, -38, 7);
+              projG.endFill();
+            } else {
+              projG.beginFill(0xff6b00, 1);
+              projG.drawCircle(-26, 0, 12);
+              projG.endFill();
+              projG.beginFill(0x3a4a5e, 1);
+              projG.drawRoundedRect(-20, -10, 40, 20, 6);
+              projG.endFill();
+              projG.beginFill(0xff2e2e, 1);
+              projG.moveTo(16, -11);
+              projG.lineTo(34, 0);
+              projG.lineTo(16, 11);
+              projG.closePath();
+              projG.endFill();
+            }
 
-            this.grid[target.col][target.row] = target.cell;
-            this._rebuildStaticGridNodes();
-            this.audio.playExplosion();
-            this.triggerScreenShake(0.32, 16);
-            this.addWaterRing(tx, ty, 140, 0xff8a00);
-            this.spawnSplashParticles(tx, ty, 42, '#FF9500');
-            resolve();
-          }
-        };
-        this.customRenderCallbacks.push(cb);
-      });
+            if (t >= 1) {
+              this.breakoutLayer.removeChild(projG);
+              projG.destroy();
+              this.customRenderCallbacks = this.customRenderCallbacks.filter(fn => fn !== cb);
+
+              this.grid[target.col][target.row] = target.cell;
+              this._rebuildStaticGridNodes();
+              this.audio.playExplosion();
+              this.triggerScreenShake(0.32, 16);
+              this.addWaterRing(tx, ty, 140, 0xff8a00);
+              this.spawnSplashParticles(tx, ty, 42, '#FF9500');
+              resolve();
+            }
+          };
+          this.customRenderCallbacks.push(cb);
+        });
+      }
     }
   }
 
@@ -1066,7 +1285,10 @@ export class ReelRenderer {
         this.spawnSplashParticles(fx, fy, 26, '#80F5FF');
         this.audio.playFishCollect();
 
-        const flyingFishNode = this._createSymbolNode(f.cell, f.col, f.row);
+        const flyingFishNode = this._createSymbolNode(f.cell, f.col, f.row, true);
+        if (flyingFishNode.mainSprite && this.hookedThrashFilter) {
+          flyingFishNode.mainSprite.filters = [this.hookedThrashFilter];
+        }
         flyingFishNode.x = fx;
         flyingFishNode.y = fy;
         this.breakoutLayer.addChild(flyingFishNode);
@@ -1099,7 +1321,7 @@ export class ReelRenderer {
           this.customRenderCallbacks.push(cb);
         });
 
-        // 3. Fish lands in Fisherman's net! Punch Fisherman scale & increment live counter badge!
+        // 3. Fish lands in Fisherman's net! Punch Fisherman scale, launch 3D Gold Coins & increment live counter badge!
         rodGraphics.clear();
         accumulatedWin = Number((accumulatedWin + multipliedCash).toFixed(2));
         updateCounterBadge(accumulatedWin);
@@ -1115,6 +1337,15 @@ export class ReelRenderer {
         this.triggerScreenShake(0.16, 8);
         this.addWaterRing(wx, wy, 125, 0x4cd964);
         this.spawnSplashParticles(wx, wy, 32, '#FFD700');
+        if (this.vfx3d) {
+          const { nx, ny } = this._toScreenNorm(wx, wy);
+          const fishMult = f.cell.money.multiplier * levelMultiplier;
+          const coinBurst = Math.min(34, Math.max(10, Math.round(fishMult * 0.7)));
+          this.vfx3d.burstCoins(nx, ny, coinBurst, fishMult >= 25 ? 1.18 : 0.92);
+          if (fishMult >= 20) {
+            this.vfx3d.spawnShockwave(nx, ny, 0x4cd964, 3.2);
+          }
+        }
         this.addFloatingText(
           wx,
           wy - 55,
@@ -1278,10 +1509,32 @@ export class ReelRenderer {
   }
 
   update(dt, now) {
-    // 1. Animate WebGL Underwater Displacement Shader & Caustic Sunbeams
+    const timeSec = now * 0.001;
+
+    // 1. Animate WebGL Underwater Displacement, Custom GLSL Voronoi Caustics, Fish Swim Wave & Gold Shimmer Shaders
     if (this.displacementSprite) {
       this.displacementSprite.x += 28 * dt;
       this.displacementSprite.y += 18 * dt;
+    }
+
+    const targetBonusMix = this.isFreeSpins ? 1.0 : 0.0;
+    this.bonusMix += (targetBonusMix - this.bonusMix) * Math.min(1, dt * 3.0);
+
+    if (this.causticsFilter) {
+      this.causticsFilter.uniforms.uTime = timeSec;
+      this.causticsFilter.uniforms.uBonusMix = this.bonusMix;
+    }
+
+    for (const sf of this.swimFilters) {
+      sf.uniforms.uTime = timeSec * 4.4;
+    }
+
+    if (this.hookedThrashFilter) {
+      this.hookedThrashFilter.uniforms.uTime = timeSec * 22.0;
+    }
+
+    if (this.goldShimmerFilter) {
+      this.goldShimmerFilter.uniforms.uTime = timeSec;
     }
 
     for (const beam of this.causticBeams) {
@@ -1316,11 +1569,17 @@ export class ReelRenderer {
 
     // 4. Update spinning reels
     const symbolKeys = Object.keys(SYMBOLS);
+    let anyActiveSuspense = false;
     for (let c = 0; c < this.cols; c++) {
       const colObj = this.reelColumns[c];
       if (colObj.spinning) {
         const prevStopped = c === 0 || !this.reelColumns[c - 1].spinning;
-        colObj.spotlight.visible = Boolean(colObj.isSuspenseReel && prevStopped);
+        const showSuspense = Boolean(colObj.isSuspenseReel && prevStopped);
+        colObj.spotlight.visible = showSuspense;
+        if (showSuspense) {
+          anyActiveSuspense = true;
+          colObj.spotlight.alpha = 0.55 + Math.sin(now * 0.022) * 0.35;
+        }
 
         colObj.offsetY += colObj.speed * dt;
         if (colObj.offsetY >= this.cellH) {
@@ -1337,7 +1596,7 @@ export class ReelRenderer {
             symbol: SYMBOLS[randId],
             money: randId === 'FISH' ? { multiplier: 10, tier: 'medium' } : null
           };
-          const newNode = this._createSymbolNode(dummyCell, c, -1);
+          const newNode = this._createSymbolNode(dummyCell, c, -1, true);
           colObj.symbolsHolder.addChild(newNode);
           colObj.stripNodes.unshift(newNode);
         }
@@ -1384,16 +1643,37 @@ export class ReelRenderer {
             );
             node.mainSprite.rotation = wag * 0.035;
           } else if (node.cellData?.id === 'DRAGONFLY') {
-            // Dragonfly hovers rapidly
-            const hover = Math.sin(now * 0.018 + c);
-            node.mainSprite.scale.set(node.baseSpriteScale * (1 + hover * 0.02));
-            node.mainSprite.rotation = hover * 0.03;
+            // Dragonfly hovers rapidly with high-frequency wing shimmer
+            const hover = Math.sin(now * 0.022 + c);
+            node.mainSprite.scale.set(node.baseSpriteScale * (1 + hover * 0.024));
+            node.mainSprite.rotation = hover * 0.038;
+          } else if (node.cellData?.id === 'TRUCK') {
+            // Monster truck idles with chunky suspension bounce
+            const rumble = Math.sin(now * 0.014 + c);
+            node.mainSprite.scale.set(
+              node.baseSpriteScale * (1 - rumble * 0.012),
+              node.baseSpriteScale * (1 + rumble * 0.018)
+            );
+            node.mainSprite.rotation = rumble * 0.018;
           } else {
             const breathe = 1 + Math.sin(now * 0.0035 + c + r) * 0.015;
             node.mainSprite.scale.set(node.baseSpriteScale * breathe);
             node.mainSprite.rotation = 0;
           }
         }
+      }
+    }
+
+    // Drive authentic anticipation tension riser audio while a 2-Scatter suspense reel is spinning
+    if (anyActiveSuspense && !this.riserActive) {
+      this.riserActive = true;
+      if (this.audio && typeof this.audio.startAnticipationRiser === 'function') {
+        this.audio.startAnticipationRiser();
+      }
+    } else if (!anyActiveSuspense && this.riserActive) {
+      this.riserActive = false;
+      if (this.audio && typeof this.audio.stopAnticipationRiser === 'function') {
+        this.audio.stopAnticipationRiser();
       }
     }
 

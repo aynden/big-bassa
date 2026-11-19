@@ -520,4 +520,119 @@ export class AudioEngine {
       });
     }
   }
+
+  /**
+   * Authentic Casino Suspense Anticipation Riser (when 2 Scatters land or spinning for 4th Fisherman)
+   */
+  startAnticipationRiser() {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx || this._riserTimer) return;
+
+    let step = 0;
+    const playBeat = () => {
+      if (!this.ctx || !this.sfxEnabled) return;
+      const now = this.ctx.currentTime;
+      const baseFreq = 260 * Math.pow(1.045, Math.min(step, 20));
+
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.09);
+
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(now);
+      osc.stop(now + 0.12);
+
+      // Subtle metallic rattle on alternating beats
+      if (step % 2 === 0 && this.buffers.coin_drop) {
+        this._playBuffer('coin_drop', {
+          offset: 0.01,
+          duration: 0.08,
+          rate: 1.4 + Math.min(step, 16) * 0.04,
+          gainVal: 0.28
+        });
+      }
+      step++;
+    };
+
+    playBeat();
+    this._riserTimer = setInterval(playBeat, 115);
+  }
+
+  stopAnticipationRiser() {
+    if (this._riserTimer) {
+      clearInterval(this._riserTimer);
+      this._riserTimer = null;
+    }
+  }
+
+  /**
+   * Crisp Metallic Coin Counter Tick synced to Big Win / Mega Win / Bonus Total rolling odometer
+   */
+  playCoinCountTick(progress = 0) {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    if (this.buffers.coin_drop) {
+      this._playBuffer('coin_drop', {
+        offset: 0.01,
+        duration: 0.075,
+        rate: 1.25 + progress * 0.65,
+        gainVal: 0.34
+      });
+    }
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(720 + progress * 520, now);
+    g.gain.setValueAtTime(0.09, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    osc.connect(g);
+    g.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.06);
+  }
+
+  /**
+   * Grand Level-Up Retrigger Fanfare (2x / 3x / 10x unlocked!)
+   */
+  playLevelUpFanfare() {
+    this.init();
+    if (!this.sfxEnabled || !this.ctx) return;
+
+    if (this.buffers.coins) {
+      this._playBuffer('coins', {
+        offset: 0,
+        duration: 2.2,
+        rate: 1.05,
+        gainVal: 0.95
+      });
+    }
+
+    const now = this.ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50, 987.77, 1174.66, 1567.98];
+    notes.forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      const filt = this.ctx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.value = 2600;
+      osc.frequency.setValueAtTime(freq, now + i * 0.09);
+      g.gain.setValueAtTime(0.18, now + i * 0.09);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.42);
+      osc.connect(filt);
+      filt.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.44);
+    });
+  }
 }

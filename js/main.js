@@ -8,6 +8,7 @@ import { GAME_CONFIG, SYMBOLS, PRE_BONUS_MODIFIERS } from './config.js';
 import { SlotEngine } from './engine.js';
 import { ReelRenderer } from './renderer.js';
 import { AudioEngine } from './audio.js';
+import { ThreeVFXEngine } from './vfx3d.js';
 
 const STORAGE_KEY_BALANCE = 'big_bass_splash_balance_v1';
 
@@ -16,7 +17,9 @@ class BigBassSplashApp {
     this.audio = new AudioEngine();
     this.engine = new SlotEngine();
     this.canvas = document.getElementById('slot-canvas');
-    this.renderer = new ReelRenderer(this.canvas, this.audio);
+    this.threeCanvas = document.getElementById('three-vfx-canvas');
+    this.vfx3d = this.threeCanvas ? new ThreeVFXEngine(this.threeCanvas) : null;
+    this.renderer = new ReelRenderer(this.canvas, this.audio, this.vfx3d);
 
     // Player Wallet & Bet State
     const savedBalance = parseFloat(localStorage.getItem(STORAGE_KEY_BALANCE));
@@ -118,6 +121,7 @@ class BigBassSplashApp {
       btnStartFreeSpins: document.getElementById('btn-start-freespins'),
 
       // Celebration Modal
+      celebrationDimmer: document.getElementById('celebration-dimmer'),
       celebrationModal: document.getElementById('celebration-modal'),
       celebrationTierBadge: document.getElementById('celebration-tier-badge'),
       celebrationAmount: document.getElementById('celebration-amount'),
@@ -142,8 +146,9 @@ class BigBassSplashApp {
       paytableCurrentBet: document.getElementById('paytable-current-bet'),
       paytableSymbolsGrid: document.getElementById('paytable-symbols-grid'),
 
-      // Cheat Drawer & Music Track Switcher
+      // Cheat Drawer, Music Track Switcher & 3D FX Toggle
       btnNextTrack: document.getElementById('btn-next-track'),
+      btnToggle3d: document.getElementById('btn-toggle-3d'),
       btnToggleCheat: document.getElementById('btn-toggle-cheat'),
       cheatDrawer: document.getElementById('cheat-drawer'),
       btnCloseCheat: document.getElementById('btn-close-cheat'),
@@ -164,6 +169,21 @@ class BigBassSplashApp {
         this.audio.playButtonClick();
         const nextTrack = this.audio.nextTrack();
         this.setStatus(`🎵 NOW PLAYING: ${nextTrack.name.toUpperCase()}`);
+      });
+    }
+
+    if (this.dom.btnToggle3d) {
+      this.dom.btnToggle3d.addEventListener('click', () => {
+        if (!this.vfx3d) return;
+        this.audio.playButtonClick();
+        this.vfx3d.enabled = !this.vfx3d.enabled;
+        this.dom.btnToggle3d.textContent = this.vfx3d.enabled ? '✨ 3D FX: ON' : '✨ 3D FX: OFF';
+        if (this.threeCanvas) {
+          this.threeCanvas.style.opacity = this.vfx3d.enabled ? '1' : '0';
+        }
+        if (this.vfx3d.enabled) {
+          this.vfx3d.burstCoins(0.5, 0.45, 22, 1.0);
+        }
       });
     }
 
@@ -442,6 +462,7 @@ class BigBassSplashApp {
   updateTrailUI() {
     const inFS = this.engine.inFreeSpins;
     this.dom.stage.classList.toggle('freespins-mode', inFS);
+    this.renderer.setFreeSpinsMode(inFS);
 
     if (inFS) {
       this.dom.fsModeBadge.textContent = `FREE SPINS: ${this.engine.freeSpinsRemaining} LEFT • LEVEL ${this.engine.currentLevel} (${this.engine.currentMultiplier}×)`;
@@ -455,6 +476,18 @@ class BigBassSplashApp {
     document.querySelectorAll('[data-wild-idx]').forEach(el => {
       const idx = parseInt(el.dataset.wildIdx, 10);
       el.classList.toggle('collected', this.engine.wildsCollected >= idx);
+    });
+
+    // Pulse the next milestone when player is sitting at 3/4 wilds (1 away from retrigger!)
+    const wilds = this.engine.wildsCollected;
+    document.querySelectorAll('.trail-segment').forEach(seg => {
+      const segLvl = parseInt(seg.dataset.level, 10);
+      const isOneAway =
+        inFS &&
+        ((segLvl === 2 && wilds === 3) ||
+          (segLvl === 3 && wilds === 7) ||
+          (segLvl === 4 && wilds === 11));
+      seg.classList.toggle('tension-sweat', isOneAway);
     });
   }
 
@@ -567,8 +600,13 @@ class BigBassSplashApp {
 
       if (result.fishCollection.retriggerAward) {
         const rt = result.fishCollection.retriggerAward;
-        this.audio.playBonusTrigger();
-        this.renderer.triggerScreenShake(0.4, 16);
+        this.audio.playLevelUpFanfare();
+        this.audio.startBGM('freespins', rt.newLevel);
+        this.renderer.triggerScreenShake(0.45, 18);
+        if (this.vfx3d) {
+          this.vfx3d.spawnShockwave(0.5, 0.35, 0xffd700, 5.8);
+          this.vfx3d.burstCoins(0.5, 0.42, 52, 1.3);
+        }
         this.renderer.addFloatingText(
           600,
           260,
@@ -577,7 +615,7 @@ class BigBassSplashApp {
           44,
           1.8
         );
-        await new Promise(r => setTimeout(r, 1100));
+        await new Promise(r => setTimeout(r, 1200));
       }
     }
 
@@ -880,19 +918,83 @@ class BigBassSplashApp {
   }
 
   /**
-   * Show Big Win / Free Spins Total Celebration Modal
+   * Show Frameless AAA Big Win / Mega Win / Superb Win / Free Spins Complete Celebration
+   * layered directly in front of the real-time Three.js 3D Starburst Trophy, Crown & Twin 3D Gold Coin Fountains!
    */
   showCelebrationModal(tierTitle, amount, subtext) {
     this.audio.playBonusTrigger();
     this.dom.celebrationTierBadge.textContent = tierTitle;
-    this.dom.celebrationAmount.textContent = this.formatCurrency(amount);
     this.dom.celebrationSubtext.textContent = subtext;
+    this.dom.celebrationAmount.textContent = this.formatCurrency(0);
+
+    if (this.dom.celebrationDimmer) {
+      this.dom.celebrationDimmer.classList.remove('hidden');
+    }
     this.dom.celebrationModal.classList.remove('hidden');
 
+    const intensity = tierTitle.includes('SUPERB') ? 1.55 : tierTitle.includes('MEGA') ? 1.25 : 1.0;
+    if (this.vfx3d) {
+      this.vfx3d.startCelebration(intensity);
+    }
+
     return new Promise(resolve => {
+      let counting = amount > 0;
+      let animFrameId = null;
+      const startTime = performance.now();
+      const countDuration = Math.min(2600, Math.max(1200, (amount / Math.max(0.1, this.totalBet)) * 32));
+      let lastTickTime = 0;
+
+      const finishCount = () => {
+        counting = false;
+        if (animFrameId) {
+          cancelAnimationFrame(animFrameId);
+          animFrameId = null;
+        }
+        this.dom.celebrationAmount.textContent = this.formatCurrency(amount);
+        this.audio.playWinChime(true);
+        if (this.vfx3d) {
+          this.vfx3d.burstCoins(0.5, 0.55, 36, 1.2);
+        }
+      };
+
+      const stepOdometer = now => {
+        if (!counting) return;
+        const p = Math.min(1, (now - startTime) / countDuration);
+        const eased = 1 - Math.pow(1 - p, 2.4);
+        const curVal = amount * eased;
+        this.dom.celebrationAmount.textContent = this.formatCurrency(curVal);
+
+        if (now - lastTickTime > 72) {
+          lastTickTime = now;
+          this.audio.playCoinCountTick(p);
+        }
+
+        if (p >= 1) {
+          finishCount();
+        } else {
+          animFrameId = requestAnimationFrame(stepOdometer);
+        }
+      };
+
+      if (counting) {
+        animFrameId = requestAnimationFrame(stepOdometer);
+      } else {
+        this.dom.celebrationAmount.textContent = this.formatCurrency(amount);
+      }
+
       const dismiss = () => {
+        if (counting) {
+          finishCount();
+          return;
+        }
         this.dom.btnDismissCelebration.removeEventListener('click', dismiss);
         this.dom.celebrationModal.classList.add('hidden');
+        if (this.dom.celebrationDimmer) {
+          this.dom.celebrationDimmer.classList.add('hidden');
+        }
+        if (this.vfx3d) {
+          this.vfx3d.stopCelebration();
+        }
         resolve();
       };
       this.dom.btnDismissCelebration.addEventListener('click', dismiss);
