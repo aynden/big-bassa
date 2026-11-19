@@ -79,6 +79,10 @@ class BigBassSplashApp {
       statusLine: document.getElementById('hud-status-line'),
       winBox: document.getElementById('hud-win-box'),
       winAmount: document.getElementById('hud-win-amount'),
+      hudBonusDisplay: document.getElementById('hud-bonus-display'),
+      hudBonusWinValue: document.getElementById('hud-bonus-win-value'),
+      hudBonusSubLabel: document.getElementById('hud-bonus-sub-label'),
+      hudBonusSpinsValue: document.getElementById('hud-bonus-spins-value'),
 
       btnSpin: document.getElementById('btn-spin'),
       btnBetMinus: document.getElementById('btn-bet-minus'),
@@ -109,13 +113,10 @@ class BigBassSplashApp {
       btnCancelBuy: document.getElementById('btn-cancel-buy'),
       btnConfirmBuy: document.getElementById('btn-confirm-buy'),
 
-      // Trail & Base Header (Progress bar visible ONLY in Bonus Game!)
+      // Trail, Bonus Left Medallions Rail & Base Header (Progress belt visible ONLY in Bonus Game!)
       baseGameHeader: document.getElementById('base-game-header'),
       freespinsTrailBar: document.getElementById('freespins-trail-bar'),
-      fsModeBadge: document.getElementById('fs-mode-badge'),
-      fsCounterText: document.getElementById('fs-counter-text'),
-      activeModifiersPanel: document.getElementById('active-modifiers-panel'),
-      activeModifiersList: document.getElementById('active-modifiers-list'),
+      bonusMedallionsRail: document.getElementById('bonus-medallions-rail'),
 
       // Phase 1: Underwater Circle-Swim Lasso & Anchor Catch Arena
       prebonusLassoOverlay: document.getElementById('prebonus-lasso-overlay'),
@@ -128,6 +129,12 @@ class BigBassSplashApp {
       bonusPosterCard: document.getElementById('bonus-poster-card'),
       posterSpinsHeadline: document.getElementById('poster-spins-headline'),
       btnStartFreeSpins: document.getElementById('btn-start-freespins'),
+
+      // Level-Up Retrigger Parchment Poster ("EXTRA 10 FREE SPINS / ARE NOW × 2")
+      bonusRetriggerModal: document.getElementById('bonus-retrigger-modal'),
+      bonusRetriggerCard: document.getElementById('bonus-retrigger-card'),
+      retriggerExtraSpins: document.getElementById('retrigger-extra-spins'),
+      retriggerNewMult: document.getElementById('retrigger-new-mult'),
 
       // Celebration Modal
       celebrationDimmer: document.getElementById('celebration-dimmer'),
@@ -220,6 +227,7 @@ class BigBassSplashApp {
         const blockingModalOpen =
           (this.dom.celebrationModal && !this.dom.celebrationModal.classList.contains('hidden')) ||
           (this.dom.bonusIntroPosterModal && !this.dom.bonusIntroPosterModal.classList.contains('hidden')) ||
+          (this.dom.bonusRetriggerModal && !this.dom.bonusRetriggerModal.classList.contains('hidden')) ||
           (this.dom.prebonusLassoOverlay && !this.dom.prebonusLassoOverlay.classList.contains('hidden'));
         if (blockingModalOpen) return;
 
@@ -474,40 +482,55 @@ class BigBassSplashApp {
     this.dom.btnBuyBonus.disabled = disableBetChange;
   }
 
-  updateTrailUI() {
+  updateTrailUI(displayedWildsOverride = null) {
     const inFS = this.engine.inFreeSpins;
     this.dom.stage.classList.toggle('freespins-mode', inFS);
     this.renderer.setFreeSpinsMode(inFS);
 
-    // Progress bar is ONLY visible during the Free Spins Bonus Game!
+    // Top stitched-leather progress belt, left medallions rail, & bonus bottom HUD visible ONLY in Free Spins!
     if (this.dom.freespinsTrailBar) {
       this.dom.freespinsTrailBar.classList.toggle('hidden', !inFS);
     }
     if (this.dom.baseGameHeader) {
       this.dom.baseGameHeader.classList.toggle('hidden', inFS);
     }
-
-    if (inFS) {
-      this.dom.fsModeBadge.textContent = `FREE SPINS: ${this.engine.freeSpinsRemaining} LEFT • LEVEL ${this.engine.currentLevel} (${this.engine.currentMultiplier}×)`;
-      this.dom.fsCounterText.textContent = `BONUS TOTAL WIN: ${this.formatCurrency(this.engine.freeSpinsTotalWin)} • WILDS COLLECTED: ${this.engine.wildsCollected}/12`;
+    if (this.dom.bonusMedallionsRail) {
+      this.dom.bonusMedallionsRail.classList.toggle('hidden', !inFS);
+    }
+    if (this.dom.hudBonusDisplay) {
+      this.dom.hudBonusDisplay.classList.toggle('hidden', !inFS);
     }
 
-    // Highlight collected wild dots & milestones (1..12)
-    document.querySelectorAll('[data-wild-idx]').forEach(el => {
+    if (inFS) {
+      if (this.dom.hudBonusWinValue) {
+        this.dom.hudBonusWinValue.textContent = this.formatCurrency(this.engine.freeSpinsTotalWin);
+      }
+      if (this.dom.hudBonusSubLabel) {
+        this.dom.hudBonusSubLabel.textContent = 'FREE SPINS LEFT';
+      }
+      if (this.dom.hudBonusSpinsValue) {
+        this.dom.hudBonusSpinsValue.textContent = String(this.engine.freeSpinsRemaining);
+      }
+    }
+
+    const shownWilds =
+      displayedWildsOverride !== null ? displayedWildsOverride : this.engine.wildsCollected;
+
+    // Highlight collected fisherman portraits & milestone badges (1..12) on the stitched leather belt
+    document.querySelectorAll('#freespins-trail-bar [data-wild-idx]').forEach(el => {
       const idx = parseInt(el.dataset.wildIdx, 10);
-      el.classList.toggle('collected', this.engine.wildsCollected >= idx);
+      el.classList.toggle('collected', shownWilds >= idx);
     });
 
-    // Pulse the next milestone when player is sitting at 3/4 wilds (1 away from retrigger!)
-    const wilds = this.engine.wildsCollected;
-    document.querySelectorAll('.trail-segment').forEach(seg => {
-      const segLvl = parseInt(seg.dataset.level, 10);
+    // Pulse the next milestone tile when player sits at 3/4 wilds (3, 7, or 11 collected)
+    document.querySelectorAll('#freespins-trail-bar .belt-milestone[data-milestone-level]').forEach(ms => {
+      const lvl = parseInt(ms.dataset.milestoneLevel, 10);
       const isOneAway =
         inFS &&
-        ((segLvl === 2 && wilds === 3) ||
-          (segLvl === 3 && wilds === 7) ||
-          (segLvl === 4 && wilds === 11));
-      seg.classList.toggle('tension-sweat', isOneAway);
+        ((lvl === 2 && shownWilds === 3) ||
+          (lvl === 3 && shownWilds === 7) ||
+          (lvl === 4 && shownWilds === 11));
+      ms.classList.toggle('tension-sweat', isOneAway);
     });
   }
 
@@ -561,18 +584,22 @@ class BigBassSplashApp {
     this.isSpinning = true;
     this.dom.btnSpin.classList.add('spinning');
     this.dom.winBox.classList.add('hidden');
+    const preSpinWilds = this.engine.wildsCollected;
     this.updateHUD();
-    this.updateTrailUI();
+    this.updateTrailUI(preSpinWilds);
 
     // Clear cheat button UI highlight if one was queued
     document.querySelectorAll('.cheat-btn').forEach(b => b.classList.remove('active'));
     this.dom.activeCheatStatus.textContent = 'Active Queue: None (Normal RNG)';
 
-    this.setStatus(inFS ? 'CASTING LINE IN FREE SPINS...' : 'GOOD LUCK!');
+    if (!inFS) {
+      this.setStatus('GOOD LUCK!');
+    }
     this.audio.playSpinStart();
 
-    // Evaluate spin outcome
+    // Evaluate spin outcome (note: wildsCollected is advanced inside engine, but UI stays at preSpinWilds until orbs land!)
     const result = this.engine.evaluateSpin(this.totalBet);
+    let alreadyCreditedThisSpin = 0;
 
     // 1. Spin to initial 5x3 grid
     await this.renderer.spinToGrid(result.initialGrid, {
@@ -589,82 +616,92 @@ class BigBassSplashApp {
         this.setStatus('2 SCATTERS! HOOK PULLING REEL FOR 3RD SCATTER!');
         await this.renderer.playHookPullAnimation(ev.col, ev.row, ev.toGrid, '🪝 HOOK SECOND CHANCE!');
       } else if (ev.type === 'RESCUE_DYNAMITE' || ev.type === 'RESCUE_BAZOOKA') {
-        this.setStatus(ev.type === 'RESCUE_DYNAMITE' ? '🧨 DYNAMITE ADDING MONEY FISH!' : '🚀 BAZOOKA BLASTING MONEY FISH!');
         await this.renderer.playRescueExplosion(ev);
       } else if (ev.type === 'RESCUE_HOOK_WILD') {
-        this.setStatus('🎣 HOOK PULLING FISHERMAN WILD ONTO REELS!');
         await this.renderer.playHookPullAnimation(ev.col, ev.row, ev.toGrid, '🎣 FISHERMAN HOOKED!');
       }
     }
 
-    // 3. Highlight standard line wins
+    // 3. Highlight standard line wins & credit live during Free Spins
     if (result.lineWins.length > 0) {
       this.renderer.setLineWins(result.lineWins);
       this.audio.playWinChime(result.totalLineWin >= this.totalBet * 10);
+      if (inFS && result.totalLineWin > 0) {
+        const lineCredit = Math.min(result.totalLineWin, result.totalWin);
+        alreadyCreditedThisSpin = Number((alreadyCreditedThisSpin + lineCredit).toFixed(2));
+        this.engine.freeSpinsTotalWin = Number(
+          (this.engine.freeSpinsTotalWin + lineCredit).toFixed(2)
+        );
+        this.setBalance(this.balance + lineCredit);
+        this.updateTrailUI(preSpinWilds);
+      }
     }
 
-    // 4. Play Free Spins Fisherman Fish Money Collection & Level-Up Trail
+    // 4. Play Authentic Two-Step Free Spins Fisherman Collection (Collect Fish -> Apply x2/x3/x10 -> Fill Leather Belt)
     if (result.fishCollection) {
-      if (result.fishCollection.fishes.length > 0) {
-        this.setStatus(`🤠 FISHERMAN REELING IN CASH FISH (${result.fishCollection.levelMultiplier}×)!`);
-      } else {
-        this.setStatus(`🤠 FISHERMAN WILD ADDED TO MULTIPLIER TRAIL!`);
-      }
+      let displayedWilds = preSpinWilds;
       await this.renderer.playFishermanCollect(
         result.fishCollection,
         this.totalBet,
         val => this.formatCurrency(val),
-        () => this.updateTrailUI()
+        slotIdx => {
+          displayedWilds = slotIdx;
+          this.updateTrailUI(displayedWilds);
+          if (slotIdx === 4 || slotIdx === 8 || slotIdx === 12) {
+            this.audio.playLevelUpFanfare();
+            if (this.vfx3d) {
+              this.vfx3d.spawnShockwave(0.5, 0.14, 0xffd700, 4.2);
+              this.vfx3d.burstCoins(0.5, 0.16, 26, 1.05);
+            }
+          }
+        },
+        fishermanWin => {
+          const remainingCap = Math.max(0, Number((result.totalWin - alreadyCreditedThisSpin).toFixed(2)));
+          const creditNow = Math.min(fishermanWin, remainingCap);
+          if (creditNow > 0) {
+            alreadyCreditedThisSpin = Number((alreadyCreditedThisSpin + creditNow).toFixed(2));
+            if (inFS) {
+              this.engine.freeSpinsTotalWin = Number(
+                (this.engine.freeSpinsTotalWin + creditNow).toFixed(2)
+              );
+            }
+            this.setBalance(this.balance + creditNow);
+            this.updateTrailUI(displayedWilds);
+          }
+        }
       );
       this.updateTrailUI();
-
-      if (result.fishCollection.retriggerAward) {
-        const rt = result.fishCollection.retriggerAward;
-        this.audio.playLevelUpFanfare();
-        this.audio.startBGM('freespins', rt.newLevel);
-        this.renderer.triggerScreenShake(0.45, 18);
-        if (this.vfx3d) {
-          this.vfx3d.spawnShockwave(0.5, 0.35, 0xffd700, 5.8);
-          this.vfx3d.burstCoins(0.5, 0.42, 52, 1.3);
-        }
-        this.renderer.addFloatingText(
-          600,
-          260,
-          `LEVEL ${rt.newLevel} UNLOCKED! +${rt.extraSpins} SPINS (${rt.newMultiplier}×)!`,
-          '#FFD700',
-          44,
-          1.8
-        );
-        await new Promise(r => setTimeout(r, 1200));
-      }
     }
 
-    // 5. Credit Total Win
+    // 5. Credit any remaining win balance (Base Game or rounding delta)
     if (result.totalWin > 0) {
-      if (inFS) {
-        this.engine.freeSpinsTotalWin = Number(
-          (this.engine.freeSpinsTotalWin + result.totalWin).toFixed(2)
-        );
+      const remainingCredit = Number((result.totalWin - alreadyCreditedThisSpin).toFixed(2));
+      if (remainingCredit > 0) {
+        if (inFS) {
+          this.engine.freeSpinsTotalWin = Number(
+            (this.engine.freeSpinsTotalWin + remainingCredit).toFixed(2)
+          );
+        }
+        this.setBalance(this.balance + remainingCredit);
       }
-      this.setBalance(this.balance + result.totalWin);
-      this.dom.winAmount.textContent = this.formatCurrency(result.totalWin);
-      this.dom.winBox.classList.remove('hidden');
-      this.setStatus(`WIN ${this.formatCurrency(result.totalWin)}!`);
+      if (!inFS) {
+        this.dom.winAmount.textContent = this.formatCurrency(result.totalWin);
+        this.dom.winBox.classList.remove('hidden');
+        this.setStatus(`WIN ${this.formatCurrency(result.totalWin)}!`);
+      }
       this.updateTrailUI();
 
-      // Show Big Win / Mega Win / Superb Win overlay if win >= 15x total bet
+      // Show Big Win / Mega Win / Superb Win overlay if win >= 15x total bet (NO "X× TOTAL BET" label!)
       const winMult = result.totalWin / this.totalBet;
       if (winMult >= 15) {
         const tierLabel =
           winMult >= 50 ? 'SUPERB WIN!' : winMult >= 30 ? 'MEGA WIN!' : 'BIG WIN!';
-        await this.showCelebrationModal(
-          tierLabel,
-          result.totalWin,
-          `${winMult.toFixed(1)}× YOUR TOTAL BET!`
-        );
+        const subLabel =
+          winMult >= 50 ? 'MONSTER CATCH!' : winMult >= 30 ? 'HUGE CATCH!' : 'GREAT CATCH!';
+        await this.showCelebrationModal(tierLabel, result.totalWin, subLabel);
       }
-    } else {
-      this.setStatus(inFS ? `${this.engine.freeSpinsRemaining} FREE SPINS REMAINING` : 'PRESS SPIN OR SPACE TO PLAY');
+    } else if (!inFS) {
+      this.setStatus('PRESS SPIN OR SPACE TO PLAY');
     }
 
     this.isSpinning = false;
@@ -680,22 +717,38 @@ class BigBassSplashApp {
       return;
     }
 
-    // 7. If inside Free Spins, continue next free spin or conclude round
+    // 7. If inside Free Spins: finish current level's spins -> check delayed Level-Up Retrigger -> or conclude bonus!
     if (this.engine.inFreeSpins) {
       if (this.engine.freeSpinsRemaining > 0) {
         await new Promise(r => setTimeout(r, this.isTurbo ? 420 : 850));
         this.triggerSpin();
       } else {
-        const summary = this.engine.endFreeSpins();
-        this.audio.startBGM('base');
-        this.dom.activeModifiersPanel.classList.add('hidden');
-        this.updateTrailUI();
-        this.updateHUD();
-        await this.showCelebrationModal(
-          'FREE SPINS COMPLETE!',
-          summary.totalWin,
-          `WON IN ${summary.totalSpins} FREE SPINS (REACHED LEVEL ${summary.finalLevel} • ${summary.finalMultiplier}×)`
-        );
+        // Authentic Big Bass Splash Delayed Level-Up:
+        // Only now that all spins of the current level have reached 0, check if the next level was unlocked!
+        this.updateTrailUI(); // Ensures bottom HUD cleanly shows "FREE SPINS LEFT 0"
+        const retrigger = this.engine.advancePendingRetrigger();
+        if (retrigger) {
+          // Keep bottom bar visibly showing 0 spins left while the Congratulations parchment modal is open
+          if (this.dom.hudBonusSpinsValue) {
+            this.dom.hudBonusSpinsValue.textContent = '0';
+          }
+          await this.showRetriggerModal(retrigger);
+          this.audio.startBGM('freespins', retrigger.newLevel);
+          this.updateTrailUI();
+          this.updateHUD();
+          await new Promise(r => setTimeout(r, 420));
+          this.triggerSpin();
+        } else {
+          const summary = this.engine.endFreeSpins();
+          this.audio.startBGM('base');
+          this.updateTrailUI();
+          this.updateHUD();
+          await this.showCelebrationModal(
+            'FREE SPINS COMPLETE!',
+            summary.totalWin,
+            `WON IN ${summary.totalSpins} FREE SPINS!`
+          );
+        }
       }
       return;
     }
@@ -1270,19 +1323,12 @@ class BigBassSplashApp {
       this.dom.bonusIntroPosterModal.classList.add('hidden');
     }
 
-    // Populate left sidebar with caught active modifiers during Free Spins
-    if (awardedModifiers.length > 0) {
-      this.dom.activeModifiersList.innerHTML = awardedModifiers
-        .map(
-          m => `<div class="active-mod-pill"><span>${m.icon}</span><span>${m.shortName}</span></div>`
-        )
-        .join('');
-      this.dom.activeModifiersPanel.classList.remove('hidden');
-    } else {
-      this.dom.activeModifiersPanel.classList.add('hidden');
-    }
+    // Sync left vertical circular modifier medallions rail for the Free Spins bonus round
+    document.querySelectorAll('#bonus-medallions-rail .bonus-rail-medallion').forEach(med => {
+      med.classList.toggle('awarded', awardedIds.has(med.dataset.modId));
+    });
 
-    // Initialize Free Spins in engine, reveal the top Bonus Progress Bar, & start high-tempo bluegrass BGM!
+    // Initialize Free Spins in engine, reveal the top stitched-leather belt & bonus bottom HUD, & start bluegrass BGM!
     this.engine.startFreeSpins(triggerInfo.baseSpins, awardedModifiers);
     this.audio.startBGM('freespins', this.engine.currentLevel);
     this.updateTrailUI();
@@ -1290,6 +1336,59 @@ class BigBassSplashApp {
 
     await new Promise(r => setTimeout(r, 450));
     this.triggerSpin();
+  }
+
+  /**
+   * Show Authentic Level-Up Retrigger Vintage Parchment Screen:
+   * "CONGRATULATIONS! / EXTRA 10 FREE SPINS / [Fisherman] / ARE NOW × 2"
+   * Resolves on click anywhere OR Space/Enter!
+   */
+  showRetriggerModal(retrigger) {
+    this.audio.playLevelUpFanfare();
+    if (this.dom.retriggerExtraSpins) {
+      this.dom.retriggerExtraSpins.textContent = String(retrigger.extraSpins);
+    }
+    if (this.dom.retriggerNewMult) {
+      this.dom.retriggerNewMult.textContent = `× ${retrigger.newMultiplier}`;
+    }
+
+    if (this.vfx3d) {
+      this.vfx3d.spawnShockwave(0.5, 0.45, 0xffd700, 5.2);
+      this.vfx3d.burstCoins(0.24, 0.62, 22, 1.15);
+      this.vfx3d.burstCoins(0.76, 0.62, 22, 1.15);
+    }
+
+    if (this.dom.bonusRetriggerModal) {
+      this.dom.bonusRetriggerModal.classList.remove('hidden');
+    }
+
+    return new Promise(resolve => {
+      const cleanup = () => {
+        this.dom.bonusRetriggerModal?.removeEventListener('click', onContinue);
+        this.dom.bonusRetriggerCard?.removeEventListener('click', onContinue);
+        window.removeEventListener('keydown', onKey, true);
+      };
+      const onContinue = e => {
+        e?.stopPropagation?.();
+        cleanup();
+        this.audio.playButtonClick();
+        if (this.dom.bonusRetriggerModal) {
+          this.dom.bonusRetriggerModal.classList.add('hidden');
+        }
+        resolve();
+      };
+      const onKey = e => {
+        if ((e.code === 'Space' || e.code === 'Enter') && document.activeElement?.tagName !== 'INPUT') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.repeat) return;
+          onContinue();
+        }
+      };
+      this.dom.bonusRetriggerModal?.addEventListener('click', onContinue);
+      this.dom.bonusRetriggerCard?.addEventListener('click', onContinue);
+      window.addEventListener('keydown', onKey, true);
+    });
   }
 
   /**
@@ -1405,15 +1504,16 @@ class BigBassSplashApp {
 
     const html = Object.values(SYMBOLS)
       .map(sym => {
-        const thumbHtml = sym.image
-          ? `<img class="paytable-thumb" src="${sym.image}" alt="${sym.name}" />`
+        const thumbImg = sym.bonusImage || sym.image;
+        const thumbHtml = thumbImg
+          ? `<img class="paytable-thumb" src="${thumbImg}" alt="${sym.name}" />`
           : `<div class="paytable-royal-badge" style="background:${sym.secondaryColor}; color:${sym.rimColor};">${sym.label}</div>`;
 
         const payoutEntries = Object.entries(sym.payouts || {})
           .sort((a, b) => Number(b[0]) - Number(a[0]))
           .map(
             ([count, mult]) =>
-              `<div><strong>${count}×</strong> — ${this.formatCurrency(mult * bet)} <em>(${mult}×)</em></div>`
+              `<div><strong>${count}×</strong> — ${this.formatCurrency(mult * bet)}</div>`
           )
           .join('');
 
@@ -1440,5 +1540,6 @@ class BigBassSplashApp {
 
 window.addEventListener('DOMContentLoaded', () => {
   const app = new BigBassSplashApp();
+  window.bigBassApp = app;
   app.init();
 });

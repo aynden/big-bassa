@@ -42,6 +42,7 @@ export const SYMBOLS = {
     name: 'Fisherman Wild',
     type: 'wild',
     image: 'assets/images/symbols/wild_fisherman.png',
+    bonusImage: 'assets/images/symbols/wild_fisherman_bonus.png',
     baseWeight: 0, // Authentic Big Bass Splash: Fisherman Wild only appears during Free Spins!
     freeSpinWeight: 1.58, // Base Free Spins weight + dynamic trail-tension pacing in SlotEngine
     payouts: { 3: 5, 4: 25, 5: 200 },
@@ -52,7 +53,7 @@ export const SYMBOLS = {
     name: 'Hooked Bass Scatter',
     type: 'scatter',
     image: 'assets/images/symbols/scatter_bass.png',
-    baseWeight: 2.52, // ~1 in 210 base spins triggers Free Spins (~95x avg bonus = ~45.5% Bonus RTP + ~51.0% Base RTP = ~96.5% Total RTP)
+    baseWeight: 2.68, // ~1 in 195 base spins triggers Free Spins (~89x avg bonus = ~45% Bonus RTP + ~51.5% Base RTP = ~96.5% Total RTP)
     freeSpinWeight: 0, // Scatters do not land during Free Spins
     payouts: {},
     description: '3, 4, or 5 Scatters trigger 10, 15, or 20 Free Spins! 2 Scatters can trigger Nudge Respin or Hook Pull.'

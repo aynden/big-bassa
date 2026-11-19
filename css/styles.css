@@ -395,45 +395,48 @@ body {
   margin-top: 2px;
 }
 
-/* Active Modifiers Sidebar Box during Free Spins */
-.active-modifiers-panel {
-  width: 100%;
-  background: rgba(4, 26, 44, 0.88);
-  border: 2px solid var(--aqua-bright);
-  border-radius: 16px;
-  padding: 10px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+/* Bonus Mode Left Rail: Hide Base Logo & Buy Bonus, Show 5 Vertical Circular Modifier Medallions */
+.game-stage.freespins-mode .left-side-column {
+  width: 84px;
+  gap: 0;
 }
 
-.modifiers-panel-title {
-  font-family: var(--font-display);
-  font-size: 11px;
-  color: var(--aqua-bright);
-  text-align: center;
-  margin-bottom: 6px;
+.game-stage.freespins-mode .big-bass-logo-card,
+.game-stage.freespins-mode .buy-bonus-placard {
+  display: none;
 }
 
-.active-modifiers-list {
+.bonus-medallions-rail {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
-.active-mod-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(14, 72, 112, 0.75);
-  border: 1px solid rgba(255, 230, 128, 0.45);
-  border-radius: 8px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 800;
-  color: #fff3b0;
+.bonus-rail-medallion {
+  width: 66px;
+  height: 66px;
+}
+
+.bonus-rail-medallion .medallion-big-num {
+  font-size: 21px;
+}
+
+.bonus-rail-medallion .medallion-icon {
+  font-size: 24px;
+}
+
+.bonus-rail-medallion .medallion-img {
+  width: 46px;
+}
+
+.bonus-rail-medallion .medallion-img-wild {
+  width: 50px;
 }
 
 /* ==========================================================================
-   Center Column: Free Spins Multiplier Trail + 5x3 Reel Canvas
+   Center Column: Base Crest OR Authentic Stitched-Leather Free Spins Belt + 5x3 Reel Canvas
    ========================================================================== */
 .center-reel-column {
   flex: 1;
@@ -441,7 +444,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  max-width: 1100px;
+  max-width: 1120px;
   height: 100%;
   min-height: 0;
 }
@@ -499,117 +502,165 @@ body {
   filter: drop-shadow(0 2px 0 #4d0000) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.9));
 }
 
-.freespins-trail-bar {
+/* Authentic Curved Stitched Cowboy-Leather 12-Slot Progress Belt (Visible ONLY in Free Spins!) */
+.freespins-trail-bar.leather-progress-belt {
+  position: relative;
   width: 100%;
+  max-width: 1060px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: linear-gradient(180deg, rgba(7, 38, 62, 0.92) 0%, rgba(3, 20, 35, 0.95) 100%);
-  border: 2.5px solid var(--gold-mid);
-  border-radius: 16px;
-  padding: 6px 14px;
-  margin-bottom: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  gap: 8px;
+  background: linear-gradient(180deg, #b5652c 0%, #864116 42%, #632c0a 78%, #471c04 100%);
+  border: 3px solid #260d02;
+  border-radius: 34px 28px 34px 36px;
+  padding: 7px 14px 7px 12px;
+  margin-bottom: 6px;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.72),
+    inset 0 2px 3px rgba(255, 214, 158, 0.55),
+    inset 0 -3px 6px rgba(34, 12, 2, 0.75);
 }
 
-.game-stage.freespins-mode .freespins-trail-bar {
-  background: linear-gradient(180deg, rgba(84, 34, 6, 0.95) 0%, rgba(44, 15, 2, 0.96) 100%);
-  border-color: #ffdd55;
-  box-shadow: 0 0 22px rgba(255, 204, 0, 0.4);
+/* Stitched Leather Thread Border */
+.freespins-trail-bar.leather-progress-belt::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 2px dashed rgba(248, 216, 168, 0.72);
+  border-radius: 30px 24px 30px 32px;
+  pointer-events: none;
 }
 
-.trail-info-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.fs-mode-badge {
-  font-family: var(--font-display);
-  font-size: 13px;
-  color: var(--gold-bright);
-}
-
-.fs-counter-text {
+.belt-rivet {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe699 0%, #c98628 55%, #663806 100%);
+  border: 2px solid #3a1a03;
+  color: #522604;
   font-size: 11px;
-  font-weight: 800;
-  color: #a8eaff;
-}
-
-.trail-meter-track {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.65), inset 0 1px 2px rgba(255, 250, 220, 0.75);
+  z-index: 2;
 }
 
-.trail-segment {
-  display: flex;
+.belt-slots-row {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr)) 1.24fr;
   align-items: center;
   gap: 6px;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.trail-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.wild-dot {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  filter: grayscale(1) opacity(0.35);
-  transition: transform 0.25s ease, filter 0.25s ease, border-color 0.25s ease;
-}
-
-.wild-dot.collected {
-  filter: grayscale(0) opacity(1);
-  background: radial-gradient(circle, #ffe066 0%, #c2780e 100%);
-  border-color: #ffffff;
-  transform: scale(1.12);
-}
-
-.trail-milestone {
+.belt-slot {
+  position: relative;
+  height: 54px;
+  border-radius: 8px;
+  border: 2.5px solid #2b1306;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #1b4f72 0%, #0d2a40 100%);
-  border: 2px solid var(--gold-mid);
-  border-radius: 10px;
-  padding: 2px 8px;
-  min-width: 54px;
-  transition: transform 0.25s ease, background 0.25s ease;
+  transition: transform 0.25s ease, filter 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.45);
 }
 
-.trail-milestone.collected {
-  background: linear-gradient(180deg, #ff9500 0%, #b84b00 100%);
-  border-color: #fff6b3;
-  transform: scale(1.08);
-  box-shadow: 0 0 14px rgba(255, 180, 0, 0.65);
+/* Fisherman Portrait Slots (1-3, 5-7, 9-11) */
+.belt-fisherman {
+  background: #2f2a27;
 }
 
-.milestone-mult {
-  font-family: var(--font-display);
-  font-size: 14px;
-  color: #ffe875;
-  line-height: 1.1;
+.belt-fisherman img {
+  width: 140%;
+  height: 140%;
+  object-fit: cover;
+  object-position: 50% 10%;
+  filter: grayscale(1) contrast(1.12) brightness(0.92);
+  transition: filter 0.3s ease, transform 0.3s ease;
 }
 
-.milestone-spins {
-  font-size: 8px;
-  font-weight: 900;
+.belt-fisherman.collected {
+  border-color: #ffe87a;
+  box-shadow: 0 0 14px rgba(255, 212, 72, 0.75), inset 0 0 8px rgba(255, 225, 110, 0.45);
+}
+
+.belt-fisherman.collected img {
+  filter: grayscale(0) saturate(1.22) brightness(1.08);
+  transform: scale(1.05);
+}
+
+/* Milestone Retrigger Slots (4 -> +10 x2, 8 -> +10 x3, 12 -> +10 x10) */
+.belt-milestone {
+  background: linear-gradient(180deg, #646a73 0%, #3d424a 55%, #23272e 100%);
+  border: 2.5px solid #cfd6df;
   color: #ffffff;
+  text-align: center;
+  line-height: 0.94;
+  padding: 2px;
+  overflow: visible;
+}
+
+.belt-milestone-max {
+  height: 60px;
+  transform: rotate(3.5deg) scale(1.04);
+  border-radius: 10px;
+  border-width: 3px;
+  z-index: 3;
+}
+
+.belt-milestone.collected {
+  background: linear-gradient(180deg, #ffe066 0%, #f28500 52%, #a83700 100%);
+  border-color: #fff8c4;
+  box-shadow: 0 0 18px rgba(255, 195, 35, 0.92), inset 0 2px 5px rgba(255, 255, 220, 0.65);
+}
+
+.belt-ms-top {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: #ffffff;
+  text-shadow: 0 1.5px 0 #000000, 0 0 3px #000000;
+  transform: rotate(-4deg);
+}
+
+.belt-ms-mid {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-shadow: 0 1.5px 0 #000000;
+  transform: rotate(-4deg);
+}
+
+.belt-ms-mult {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: #ffe866;
+  text-shadow: 0 2px 0 #1f0a00, 0 0 4px #000000;
+  transform: rotate(-4deg);
+}
+
+.belt-milestone-max .belt-ms-top {
+  font-size: 15px;
+}
+
+.belt-milestone-max .belt-ms-mid {
+  font-size: 10px;
+}
+
+.belt-milestone-max .belt-ms-mult {
+  font-size: 18px;
+}
+
+.belt-milestone.tension-sweat {
+  animation: tensionPulse 0.72s ease-in-out infinite alternate;
+  border-color: #fff080 !important;
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.95), inset 0 0 10px rgba(255, 215, 0, 0.5) !important;
 }
 
 /* 5x3 Canvas Wrapper */
@@ -753,6 +804,64 @@ body {
   font-size: 24px;
   color: #4cd964;
   text-shadow: 0 2px 8px rgba(76, 217, 100, 0.45);
+}
+
+/* Authentic Pragmatic Play Bonus Mode Bottom HUD Center (WIN $276.00 / FREE SPINS LEFT 2) */
+.game-stage.freespins-mode .hud-status-line,
+.game-stage.freespins-mode .hud-win-box {
+  display: none !important;
+}
+
+.hud-bonus-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.05;
+  gap: 2px;
+}
+
+.hud-bonus-win-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.hud-bonus-win-label {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.03em;
+  color: #26c6ff;
+  text-shadow: 0 2px 0 #022036, 0 4px 10px rgba(0, 0, 0, 0.85);
+}
+
+.hud-bonus-win-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  letter-spacing: 0.02em;
+  color: #ffdc40;
+  text-shadow: 0 2px 0 #4d2600, 0 4px 12px rgba(0, 0, 0, 0.9);
+}
+
+.hud-bonus-sub-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.hud-bonus-spins-label {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  color: #26c6ff;
+  text-shadow: 0 1.5px 0 #022036, 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+.hud-bonus-spins-value {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: #ffdc40;
+  text-shadow: 0 1.5px 0 #4d2600, 0 2px 6px rgba(0, 0, 0, 0.9);
 }
 
 /* Right HUD: Spin Cluster, Minus/Plus, Turbo & Autoplay */
@@ -1113,6 +1222,7 @@ body {
   line-height: 1;
   margin-left: 8px;
   margin-top: 4px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.58));
 }
 
 .medallion-arrows {
@@ -1340,6 +1450,89 @@ body {
 .poster-start-btn:hover {
   transform: scale(1.04);
   filter: brightness(1.08);
+}
+
+/* Authentic Level-Up Retrigger Parchment Screen (CONGRATULATIONS! EXTRA 10 FREE SPINS / ARE NOW × 2) */
+.retrigger-poster-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.retrigger-poster-card {
+  width: min(90vw, 680px);
+}
+
+.retrigger-inner-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 18px 18px;
+}
+
+.retrigger-inner-frame .poster-top-ribbon {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.retrigger-spins-line,
+.retrigger-mult-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-family: 'Bungee', 'Impact', 'Arial Black', sans-serif;
+  font-weight: 900;
+  font-size: clamp(26px, 4.2vw, 42px);
+  color: #134a63;
+  letter-spacing: 0.03em;
+  line-height: 1.05;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.75);
+}
+
+.retrigger-big-white {
+  font-size: clamp(44px, 6.4vw, 68px);
+  color: #ffffff;
+  -webkit-text-stroke: 2.5px #1f333f;
+  text-shadow: 0 4px 0 #132530, 0 6px 14px rgba(0, 0, 0, 0.45);
+  line-height: 0.95;
+}
+
+.retrigger-portrait-frame {
+  width: 172px;
+  height: 172px;
+  margin: 10px 0 12px;
+  border: 4px solid #134a63;
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fff1b8 0%, #68c5e8 100%);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.retrigger-portrait-frame img {
+  width: 112%;
+  height: 112%;
+  object-fit: cover;
+}
+
+.retrigger-continue-hint {
+  font-family: 'Bungee', 'Impact', 'Arial Black', sans-serif;
+  font-weight: 900;
+  font-size: clamp(19px, 2.5vw, 25px);
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  text-shadow:
+    -2px -2px 0 #04101a,
+     2px -2px 0 #04101a,
+    -2px  2px 0 #04101a,
+     2px  2px 0 #04101a,
+     0    4px 14px rgba(0, 0, 0, 0.95);
+  user-select: none;
 }
 
 .primary-action-btn {

@@ -259,6 +259,7 @@ export class ReelRenderer {
     const toLoad = [];
     for (const sym of Object.values(SYMBOLS)) {
       if (sym.image) toLoad.push({ key: sym.id, url: sym.image });
+      if (sym.bonusImage) toLoad.push({ key: `${sym.id}_BONUS`, url: sym.bonusImage });
       if (sym.shoalImage) toLoad.push({ key: 'FISH_SHOAL', url: sym.shoalImage });
       if (sym.goldenImage) toLoad.push({ key: 'FISH_GOLDEN', url: sym.goldenImage });
     }
@@ -579,6 +580,9 @@ export class ReelRenderer {
 
     // Choose texture & natural scale
     let tex = this.textures[cell.id];
+    if (cell.id === 'WILD' && this.textures['WILD_BONUS']) {
+      tex = this.textures['WILD_BONUS'];
+    }
     let baseScale = 1.0;
     let isGoldenTrophyFish = false;
 
@@ -644,7 +648,7 @@ export class ReelRenderer {
       node.mainSprite = sprite;
     }
 
-    // If FISH Money symbol, attach glowing 3D casino cash value pill!
+    // If FISH Money symbol, attach authentic golden-orange cash ribbon (currency ONLY, no 2x/3x/10x!)
     if (cell.id === 'FISH' && cell.money) {
       const badge = this._createFishMoneyBadge(cell.money, this.currentTotalBet || 2.0);
       badge.y = this.cellH * 0.30;
@@ -655,43 +659,64 @@ export class ReelRenderer {
     return node;
   }
 
-  _createFishMoneyBadge(money, totalBet) {
+  _formatCashRibbonValue(val) {
+    if (val >= 1000) {
+      return `$${Math.round(val).toLocaleString('en-US')}`;
+    }
+    return `$${val.toFixed(2)}`;
+  }
+
+  _createCashRibbon(textStr, { width = 148, height = 38, isJackpot = false, isMultiplied = false } = {}) {
     const container = new PIXI.Container();
-    const cashVal = money.multiplier * totalBet;
-    const formatted =
-      cashVal >= 1000
-        ? `$${(cashVal / 1000).toFixed(cashVal % 1000 === 0 ? 0 : 1)}K`
-        : `$${cashVal.toFixed(cashVal < 10 && cashVal % 1 !== 0 ? 2 : 0)}`;
+    const hw = width / 2;
+    const hh = height / 2;
 
-    const isJackpot = money.multiplier >= 100;
-    const isHigh = money.multiplier >= 25;
-
-    const pillW = 158;
-    const pillH = 38;
     const bg = new PIXI.Graphics();
-    bg.lineStyle(2.5, isJackpot ? 0xffffff : 0xffd700, 1);
-    bg.beginFill(isJackpot ? 0xd97706 : isHigh ? 0xb91c1c : 0x032b47, 0.94);
-    bg.drawRoundedRect(-pillW / 2, -pillH / 2, pillW, pillH, 12);
+    // Authentic Big Bass Splash curved golden-orange wave ribbon
+    bg.lineStyle(3, isMultiplied ? 0xfff6b8 : isJackpot ? 0xffffff : 0x5c1a00, 1);
+    bg.beginFill(isMultiplied ? 0xf59e0b : isJackpot ? 0xd97706 : 0xf07119, 0.98);
+    bg.moveTo(-hw + 6, -hh + 4);
+    bg.bezierCurveTo(-hw * 0.35, -hh - 6, hw * 0.35, -hh + 7, hw - 4, -hh + 2);
+    bg.quadraticCurveTo(hw + 6, 0, hw - 8, hh - 1);
+    bg.bezierCurveTo(hw * 0.35, hh + 6, -hw * 0.35, hh - 5, -hw + 4, hh - 2);
+    bg.quadraticCurveTo(-hw - 6, 0, -hw + 6, -hh + 4);
+    bg.closePath();
     bg.endFill();
+
+    // Top sunlit specular gold highlight strip along upper curve
+    bg.lineStyle(2, 0xffe885, 0.85);
+    bg.moveTo(-hw + 12, -hh + 6);
+    bg.bezierCurveTo(-hw * 0.3, -hh - 2, hw * 0.3, -hh + 8, hw - 10, -hh + 5);
     container.addChild(bg);
 
     const style = new PIXI.TextStyle({
       fontFamily: 'Bungee, Impact, Arial Black, sans-serif',
-      fontSize: 19,
+      fontSize: isMultiplied ? 23 : 21,
       fontWeight: '900',
-      fill: ['#FFFFFF', '#FFE66D'],
-      stroke: '#001529',
-      strokeThickness: 4,
+      fill: isMultiplied ? ['#FFFFFF', '#FFF199'] : ['#FFFFFF', '#FFE8A3'],
+      stroke: '#3B1100',
+      strokeThickness: 5,
       dropShadow: true,
       dropShadowColor: '#000000',
       dropShadowBlur: 4,
       dropShadowDistance: 2
     });
 
-    const label = new PIXI.Text(`${formatted} (${money.multiplier}x)`, style);
+    const label = new PIXI.Text(textStr, style);
     label.anchor.set(0.5);
+    label.y = 1;
     container.addChild(label);
     return container;
+  }
+
+  _createFishMoneyBadge(money, totalBet) {
+    const cashVal = money.multiplier * totalBet;
+    const formatted = this._formatCashRibbonValue(cashVal);
+    return this._createCashRibbon(formatted, {
+      width: formatted.length >= 7 ? 162 : 144,
+      height: 36,
+      isJackpot: money.multiplier >= 100
+    });
   }
 
   setGrid(grid) {
@@ -848,7 +873,9 @@ export class ReelRenderer {
   spinToGrid(targetGrid, { turbo = false, lockedCols = [], onReelStop = null } = {}) {
     this.clearHighlights();
     const now = performance.now();
-    const symbolKeys = Object.keys(SYMBOLS);
+    const symbolKeys = Object.keys(SYMBOLS).filter(k =>
+      this.isFreeSpins ? k !== 'SCATTER' : k !== 'WILD'
+    );
 
     const baseDuration = turbo ? 250 : 650;
     const stagger = turbo ? 75 : 190;
@@ -1188,83 +1215,111 @@ export class ReelRenderer {
   }
 
   /**
-   * AUTHENTIC WEBGL FISHERMAN PHYSICAL REELING & NETTING CHOREOGRAPHY:
-   *  - Fisherman tile pops out on the unclipped breakout stage with an animated bending fishing rod.
-   *  - Casts line & bobber to each fish cell -> fish pops out of its cell onto the unclipped Breakout Layer,
-   *    bends/wriggles rapidly as it is physically pulled along the fishing line into the Fisherman's net!
-   *  - Live golden counter badge on the Fisherman tile escalates ($20 -> $70 -> $170!).
-   *  - Golden Fisherman trail orb shoots up into the top 12-slot multiplier trail!
+   * AUTHENTIC BIG BASS SPLASH TWO-STEP FISHERMAN COLLECTION CHOREOGRAPHY:
+   *  1. Collects EVERY Money Fish on screen into the Fisherman first, tallying their UNMULTIPLIED
+   *     cash sum onto the Fisherman's golden-orange ribbon (e.g. $10.00) while displaying the
+   *     gleaming golden ×2 / ×3 / ×10 badge beside his hat in Level 2+.
+   *  2. Once all fish are netted, if Level 2+ (×2 / ×3 / ×10), dramatically bursts the multiplier
+   *     badge and transforms the Fisherman's ribbon ($10.00 -> $20.00) with 3D gold coins & chime,
+   *     then updates the cumulative bottom WIN readout immediately.
+   *  3. Shoots a glowing Fisherman trail spark up to the exact next slot on the top stitched-leather
+   *     progress belt!
    */
-  async playFishermanCollect(fishCollection, totalBet, formatCurrency, onWildAddedToTrail = null) {
-    const { wilds, fishes, levelMultiplier } = fishCollection;
+  async playFishermanCollect(
+    fishCollection,
+    totalBet,
+    formatCurrency,
+    onWildAddedToTrail = null,
+    onFishermanWinAdded = null
+  ) {
+    const { wilds, fishes, levelMultiplier, previousWilds = 0 } = fishCollection;
     if (!wilds.length) return;
 
     const rodGraphics = new PIXI.Graphics();
     this.breakoutLayer.addChild(rodGraphics);
 
-    for (const wildPos of wilds) {
+    for (let wIdx = 0; wIdx < wilds.length; wIdx++) {
+      const wildPos = wilds[wIdx];
       const wx = this.paddingX + wildPos.col * this.cellW + this.cellW / 2;
       const wy = this.paddingY + wildPos.row * this.cellH + this.cellH / 2;
       const wildNode = this.cellContainers[wildPos.col]?.[wildPos.row];
 
       if (wildNode && window.gsap) {
-        window.gsap.to(wildNode.scale, { x: 1.15, y: 1.15, duration: 0.25, ease: 'back.out(2)' });
+        window.gsap.to(wildNode.scale, { x: 1.12, y: 1.12, duration: 0.22, ease: 'back.out(2)' });
       }
 
-      // Live accumulating payout badge below the Fisherman tile
+      // Authentic golden-orange cash ribbon layered across the lower front of the Fisherman tile
       const counterBadge = new PIXI.Container();
       counterBadge.x = wx;
-      counterBadge.y = wy + 68;
+      counterBadge.y = wy + 52;
       counterBadge.visible = false;
       this.breakoutLayer.addChild(counterBadge);
 
-      let accumulatedWin = 0;
-      const updateCounterBadge = val => {
-        counterBadge.visible = true;
-        counterBadge.removeChildren();
-        const bg = new PIXI.Graphics();
-        bg.lineStyle(3, 0xfff5b8, 1);
-        bg.beginFill(0xd97706, 0.96);
-        bg.drawRoundedRect(-86, -22, 172, 44, 14);
-        bg.endFill();
-        counterBadge.addChild(bg);
-
-        const txt = new PIXI.Text(
-          `$${val.toFixed(val % 1 === 0 ? 0 : 2)}${levelMultiplier > 1 ? ` (${levelMultiplier}×)` : ''}`,
+      // Authentic gleaming golden "x2" / "x3" / "x10" badge at top-right of Fisherman in Level 2+
+      let multBadge = null;
+      if (levelMultiplier > 1 && fishes.length > 0) {
+        multBadge = new PIXI.Text(
+          `×${levelMultiplier}`,
           new PIXI.TextStyle({
-            fontFamily: 'Bungee, Impact, sans-serif',
-            fontSize: 21,
+            fontFamily: 'Bungee, Impact, Arial Black, sans-serif',
+            fontSize: 48,
             fontWeight: '900',
-            fill: '#FFFFFF',
-            stroke: '#3B1800',
-            strokeThickness: 4
+            fill: ['#FFFDF0', '#FFE64D', '#FF9900'],
+            stroke: '#4A1B00',
+            strokeThickness: 8,
+            dropShadow: true,
+            dropShadowColor: '#FFD700',
+            dropShadowBlur: 14,
+            dropShadowDistance: 0
           })
         );
-        txt.anchor.set(0.5);
-        counterBadge.addChild(txt);
+        multBadge.anchor.set(0.5);
+        multBadge.x = wx + 66;
+        multBadge.y = wy - 50;
+        multBadge.scale.set(0.2);
+        this.breakoutLayer.addChild(multBadge);
+        if (window.gsap) {
+          window.gsap.to(multBadge.scale, { x: 1, y: 1, duration: 0.25, ease: 'back.out(2.2)' });
+        } else {
+          multBadge.scale.set(1);
+        }
+      }
+
+      const updateCounterBadge = (val, isMultiplied = false) => {
+        counterBadge.visible = true;
+        counterBadge.removeChildren();
+        const formatted = this._formatCashRibbonValue(val);
+        const ribbon = this._createCashRibbon(formatted, {
+          width: formatted.length >= 7 ? 174 : 154,
+          height: isMultiplied ? 44 : 40,
+          isMultiplied
+        });
+        counterBadge.addChild(ribbon);
       };
 
-      this.addWaterRing(wx, wy, 130, 0xffd700);
-      this.spawnSplashParticles(wx, wy, 24, '#FFD700');
-      this.audio.playHookPull();
-      await new Promise(r => setTimeout(r, 200));
+      this.addWaterRing(wx, wy, 120, 0xffd700);
+      this.spawnSplashParticles(wx, wy, 20, '#FFD700');
+      if (fishes.length > 0) {
+        this.audio.playHookPull();
+      }
+      await new Promise(r => setTimeout(r, 180));
 
-      // Reel in every Money Fish on the screen!
+      // STEP 1: Reel in EVERY Money Fish & tally their UNMULTIPLIED values onto the Fisherman first!
+      let baseAccumulated = 0;
       for (const f of fishes) {
         const fx = this.paddingX + f.col * this.cellW + this.cellW / 2;
         const fy = this.paddingY + f.row * this.cellH + this.cellH / 2;
-        const baseCash = f.cell.money.multiplier * totalBet;
-        const multipliedCash = baseCash * levelMultiplier;
+        const baseCash = Number((f.cell.money.multiplier * totalBet).toFixed(2));
         const fishNode = this.cellContainers[f.col]?.[f.row];
 
-        // 1. Cast fishing line from Fisherman rod tip out to the Fish cell (170ms)
+        // Cast fishing line from Fisherman rod tip out to the Fish cell
         await new Promise(resolve => {
           const castStart = performance.now();
-          const castDur = 170;
+          const castDur = 155;
           const cb = now => {
             const t = Math.min(1, (now - castStart) / castDur);
             const hx = wx + (fx - wx) * t;
-            const hy = wy + (fy - wy) * t - Math.sin(t * Math.PI) * 55;
+            const hy = wy + (fy - wy) * t - Math.sin(t * Math.PI) * 50;
             this._drawWebGLRodAndLine(rodGraphics, wx, wy, hx, hy, false);
             if (t >= 1) {
               this.customRenderCallbacks = this.customRenderCallbacks.filter(fn => fn !== cb);
@@ -1274,12 +1329,12 @@ export class ReelRenderer {
           this.customRenderCallbacks.push(cb);
         });
 
-        // 2. Hook snags the fish! Dim original cell & spawn a breakout wriggling fish clone that flies into Fisherman's net!
+        // Hook snags the fish!
         if (fishNode) {
-          fishNode.alpha = 0.22;
+          fishNode.alpha = 0.25;
         }
-        this.addWaterRing(fx, fy, 115, 0x00e5ff);
-        this.spawnSplashParticles(fx, fy, 26, '#80F5FF');
+        this.addWaterRing(fx, fy, 110, 0x00e5ff);
+        this.spawnSplashParticles(fx, fy, 22, '#80F5FF');
         this.audio.playFishCollect();
 
         const flyingFishNode = this._createSymbolNode(f.cell, f.col, f.row, true);
@@ -1292,18 +1347,17 @@ export class ReelRenderer {
 
         await new Promise(resolve => {
           const reelStart = performance.now();
-          const reelDur = 370;
+          const reelDur = 340;
           const cb = now => {
             const t = Math.min(1, (now - reelStart) / reelDur);
             const ease = t * t * (3 - 2 * t);
             const curX = fx + (wx - fx) * ease;
-            const curY = fy + (wy - fy) * ease - Math.sin(t * Math.PI) * 75;
+            const curY = fy + (wy - fy) * ease - Math.sin(t * Math.PI) * 70;
 
             flyingFishNode.x = curX;
             flyingFishNode.y = curY;
-            // Energetic wriggling tail-thrash as the fish is reeled across the water!
-            flyingFishNode.rotation = Math.sin(now * 0.055) * 0.36;
-            const sc = 1.12 - t * 0.35;
+            flyingFishNode.rotation = Math.sin(now * 0.055) * 0.34;
+            const sc = 1.1 - t * 0.35;
             flyingFishNode.scale.set(sc, sc * (1 + Math.cos(now * 0.055) * 0.12));
 
             this._drawWebGLRodAndLine(rodGraphics, wx, wy, curX, curY, true);
@@ -1318,63 +1372,107 @@ export class ReelRenderer {
           this.customRenderCallbacks.push(cb);
         });
 
-        // 3. Fish lands in Fisherman's net! Punch Fisherman scale, launch 3D Gold Coins & increment live counter badge!
+        // Fish lands in Fisherman's net -> increment UNMULTIPLIED ribbon total first!
         rodGraphics.clear();
-        accumulatedWin = Number((accumulatedWin + multipliedCash).toFixed(2));
-        updateCounterBadge(accumulatedWin);
+        baseAccumulated = Number((baseAccumulated + baseCash).toFixed(2));
+        updateCounterBadge(baseAccumulated, false);
 
-        if (wildNode && window.gsap) {
+        if (window.gsap) {
           window.gsap.fromTo(
-            wildNode.scale,
-            { x: 1.3, y: 1.3 },
-            { x: 1.12, y: 1.12, duration: 0.28, ease: 'back.out(2)' }
+            counterBadge.scale,
+            { x: 1.24, y: 1.24 },
+            { x: 1.0, y: 1.0, duration: 0.22, ease: 'back.out(2)' }
           );
-        }
-
-        this.triggerScreenShake(0.16, 8);
-        this.addWaterRing(wx, wy, 125, 0x4cd964);
-        this.spawnSplashParticles(wx, wy, 32, '#FFD700');
-        if (this.vfx3d) {
-          const { nx, ny } = this._toScreenNorm(wx, wy);
-          const fishMult = f.cell.money.multiplier * levelMultiplier;
-          const coinBurst = Math.min(34, Math.max(10, Math.round(fishMult * 0.7)));
-          this.vfx3d.burstCoins(nx, ny, coinBurst, fishMult >= 25 ? 1.18 : 0.92);
-          if (fishMult >= 20) {
-            this.vfx3d.spawnShockwave(nx, ny, 0x4cd964, 3.2);
+          if (wildNode) {
+            window.gsap.fromTo(
+              wildNode.scale,
+              { x: 1.24, y: 1.24 },
+              { x: 1.12, y: 1.12, duration: 0.24, ease: 'back.out(2)' }
+            );
           }
         }
-        this.addFloatingText(
-          wx,
-          wy - 55,
-          `+${formatCurrency(multipliedCash)}${levelMultiplier > 1 ? ` (${levelMultiplier}×)` : ''}`,
-          '#4CD964',
-          34,
-          0.95
-        );
+
+        this.triggerScreenShake(0.14, 6);
+        this.addWaterRing(wx, wy, 118, 0x4cd964);
+        this.spawnSplashParticles(wx, wy, 24, '#FFD700');
+        if (this.vfx3d) {
+          const { nx, ny } = this._toScreenNorm(wx, wy);
+          const coinBurst = Math.min(24, Math.max(8, Math.round(f.cell.money.multiplier * 0.6)));
+          this.vfx3d.burstCoins(nx, ny, coinBurst, 0.92);
+        }
       }
 
-      // Restore fish cell visibility after this fisherman finishes his sweep
+      // Restore fish cell visibility after sweeping
       for (const f of fishes) {
         const fishNode = this.cellContainers[f.col]?.[f.row];
         if (fishNode) fishNode.alpha = 1;
       }
 
-      if (fishes.length > 0) {
-        this.addFloatingText(
-          wx,
-          wy - 78,
-          `NETTED ${formatCurrency(accumulatedWin)}!`,
-          '#FFD700',
-          42,
-          1.35
-        );
+      // STEP 2: If in Level 2/3/4 (x2 / x3 / x10), pause briefly so unmultiplied sum is clear,
+      // then trigger the dramatic multiplier surge transforming e.g. $10.00 -> $20.00!
+      let finalFishermanWin = baseAccumulated;
+      if (fishes.length > 0 && levelMultiplier > 1) {
+        await new Promise(r => setTimeout(r, 340));
+
+        finalFishermanWin = Number((baseAccumulated * levelMultiplier).toFixed(2));
+        this.audio.playWinChime(true);
+        this.triggerScreenShake(0.24, 11);
+        this.addWaterRing(wx, wy, 155, 0xffd700);
+        this.spawnSplashParticles(wx, wy, 36, '#FFE66D');
+
+        if (multBadge && window.gsap) {
+          window.gsap.fromTo(
+            multBadge.scale,
+            { x: 1.75, y: 1.75 },
+            { x: 1.18, y: 1.18, duration: 0.42, ease: 'elastic.out(1, 0.5)' }
+          );
+        }
+
+        // Smoothly roll/pop the ribbon value from baseAccumulated -> finalFishermanWin
+        await new Promise(resolve => {
+          const rollStart = performance.now();
+          const rollDur = 360;
+          const cb = now => {
+            const t = Math.min(1, (now - rollStart) / rollDur);
+            const cur = baseAccumulated + (finalFishermanWin - baseAccumulated) * (1 - Math.pow(1 - t, 2.2));
+            updateCounterBadge(cur, true);
+            if (t >= 1) {
+              updateCounterBadge(finalFishermanWin, true);
+              this.customRenderCallbacks = this.customRenderCallbacks.filter(fn => fn !== cb);
+              resolve();
+            }
+          };
+          this.customRenderCallbacks.push(cb);
+        });
+
+        if (window.gsap) {
+          window.gsap.fromTo(
+            counterBadge.scale,
+            { x: 1.32, y: 1.32 },
+            { x: 1.06, y: 1.06, duration: 0.28, ease: 'back.out(2)' }
+          );
+        }
+        if (this.vfx3d) {
+          const { nx, ny } = this._toScreenNorm(wx, wy);
+          this.vfx3d.burstCoins(nx, ny, Math.min(40, 14 + levelMultiplier * 4), 1.15);
+          this.vfx3d.spawnShockwave(nx, ny, 0xffd700, 3.6);
+        }
+        await new Promise(r => setTimeout(r, 420));
+      } else if (fishes.length > 0) {
+        await new Promise(r => setTimeout(r, 220));
       }
 
-      // 4. Shoot glowing golden Fisherman Wild orb up into the top Multiplier Trail bar!
+      // Immediately credit this Fisherman's collected win onto the bottom cumulative WIN counter!
+      if (finalFishermanWin > 0 && onFishermanWinAdded) {
+        onFishermanWinAdded(finalFishermanWin);
+      }
+
+      // STEP 3: Shoot glowing golden Fisherman Wild orb up into the EXACT next slot on the top leather belt!
+      const targetSlotIdx = Math.min(12, previousWilds + wIdx + 1);
       const orbG = new PIXI.Graphics();
       orbG.beginFill(0xffd700, 1);
       orbG.lineStyle(3, 0xffffff, 1);
-      orbG.drawCircle(0, 0, 20);
+      orbG.drawCircle(0, 0, 18);
       orbG.endFill();
       orbG.x = wx;
       orbG.y = wy;
@@ -1382,33 +1480,38 @@ export class ReelRenderer {
 
       await new Promise(resolve => {
         const orbStart = performance.now();
-        const orbDur = 400;
-        const targetTrailX = this.width * 0.65;
-        const targetTrailY = 10;
+        const orbDur = 380;
+        const targetTrailX = this.paddingX + ((targetSlotIdx - 0.5) / 12) * (this.width - this.paddingX * 2);
+        const targetTrailY = 8;
 
         const cb = now => {
           const t = Math.min(1, (now - orbStart) / orbDur);
           const ease = t * t;
           orbG.x = wx + (targetTrailX - wx) * ease;
           orbG.y = wy + (targetTrailY - wy) * ease;
+          orbG.scale.set(1 - t * 0.35);
 
           if (t >= 1) {
             this.breakoutLayer.removeChild(orbG);
             orbG.destroy();
             this.customRenderCallbacks = this.customRenderCallbacks.filter(fn => fn !== cb);
-            if (onWildAddedToTrail) onWildAddedToTrail();
+            if (onWildAddedToTrail) onWildAddedToTrail(targetSlotIdx);
             resolve();
           }
         };
         this.customRenderCallbacks.push(cb);
       });
 
-      await new Promise(r => setTimeout(r, 260));
+      await new Promise(r => setTimeout(r, 220));
       if (wildNode && window.gsap) {
-        window.gsap.to(wildNode.scale, { x: 1.0, y: 1.0, duration: 0.25 });
+        window.gsap.to(wildNode.scale, { x: 1.0, y: 1.0, duration: 0.22 });
       }
       this.breakoutLayer.removeChild(counterBadge);
       counterBadge.destroy({ children: true });
+      if (multBadge) {
+        this.breakoutLayer.removeChild(multBadge);
+        multBadge.destroy();
+      }
     }
 
     this.breakoutLayer.removeChild(rodGraphics);
@@ -1561,7 +1664,9 @@ export class ReelRenderer {
     }
 
     // 4. Update spinning reels with silky kickback anticipation, smooth acceleration & velocity-matched blur
-    const symbolKeys = Object.keys(SYMBOLS);
+    const symbolKeys = Object.keys(SYMBOLS).filter(k =>
+      this.isFreeSpins ? k !== 'SCATTER' : k !== 'WILD'
+    );
     let anyActiveSuspense = false;
     for (let c = 0; c < this.cols; c++) {
       const colObj = this.reelColumns[c];

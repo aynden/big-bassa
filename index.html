@@ -74,7 +74,7 @@
 
     <!-- Main Slot Arena (Left Sidebar + Center 5x3 Reel Canvas + Top Free Spins Trail) -->
     <main class="slot-arena">
-      <!-- Left Column: Big Bass Splash Logo & Buy Free Spins Wooden Signboard -->
+      <!-- Left Column: Big Bass Splash Logo & Buy Free Spins (Base) OR 5 Vertical Circular Modifier Medallions (Bonus) -->
       <div class="left-side-column">
         <div class="big-bass-logo-card">
           <img class="logo-fish-img" src="assets/images/symbols/fish_golden.png" alt="Big Bass Splash" />
@@ -90,14 +90,33 @@
           <span class="placard-sub">100× TOTAL BET</span>
         </button>
 
-        <!-- Active Pre-Bonus Modifiers Badges (Visible during Free Spins) -->
-        <div id="active-modifiers-panel" class="active-modifiers-panel hidden">
-          <div class="modifiers-panel-title">ACTIVE MODIFIERS</div>
-          <div id="active-modifiers-list" class="active-modifiers-list"></div>
+        <!-- Authentic Left Vertical Column of 5 Circular Modifier Medallions (Visible ONLY during Free Spins!) -->
+        <div id="bonus-medallions-rail" class="bonus-medallions-rail hidden">
+          <div class="mod-medallion bonus-rail-medallion" data-mod-id="MORE_DYNAMITE" title="More Dynamites, Hooks &amp; Bazookas">
+            <span class="medallion-plus">+</span>
+            <span class="medallion-icon">🪝</span>
+          </div>
+          <div class="mod-medallion bonus-rail-medallion" data-mod-id="START_LEVEL_2" title="Start from Level 2 (2×)">
+            <span class="medallion-arrows">»</span>
+            <span class="medallion-label-sm">LEVEL</span>
+            <span class="medallion-big-num">2</span>
+          </div>
+          <div class="mod-medallion bonus-rail-medallion" data-mod-id="EXTRA_SPINS" title="+2 Extra Free Spins">
+            <span class="medallion-big-num">+2</span>
+            <span class="medallion-label-xs">FREE<br/>SPINS</span>
+          </div>
+          <div class="mod-medallion bonus-rail-medallion" data-mod-id="MORE_FISH" title="More Fish Money Symbols">
+            <span class="medallion-plus">+</span>
+            <img class="medallion-img" src="assets/images/symbols/fish_single.png" alt="More Fish" />
+          </div>
+          <div class="mod-medallion bonus-rail-medallion" data-mod-id="MORE_FISHERMAN" title="More Wild Fishermen">
+            <span class="medallion-plus">+</span>
+            <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman_bonus.png" alt="More Fishermen" />
+          </div>
         </div>
       </div>
 
-      <!-- Center Column: Base Game Crest (Base) OR Free Spins Multiplier Trail (Bonus Only) + 5x3 Canvas -->
+      <!-- Center Column: Base Game Crest (Base) OR Stitched Leather Free Spins Belt (Bonus Only) + 5x3 Canvas -->
       <div class="center-reel-column">
         <!-- Base Game Top Crest (Visible in Base Game only, hidden during Free Spins) -->
         <div id="base-game-header" class="base-game-header">
@@ -109,51 +128,35 @@
           <img class="crest-bass crest-bass-right" src="assets/images/symbols/fish_golden.png" alt="" />
         </div>
 
-        <!-- Progressive 4-Level Fisherman Multiplier Meter (12 Wild Slots — Visible ONLY in Free Spins Bonus!) -->
-        <div id="freespins-trail-bar" class="freespins-trail-bar hidden">
-          <div class="trail-info-left">
-            <span id="fs-mode-badge" class="fs-mode-badge">FREE SPINS: 10 LEFT • LEVEL 1 (1×)</span>
-            <span id="fs-counter-text" class="fs-counter-text">COLLECT 4 WILDS FOR +10 SPINS &amp; UP TO 10×!</span>
-          </div>
-
-          <div class="trail-meter-track">
-            <!-- Level 1 -> Level 2 (2x) -->
-            <div class="trail-segment" data-level="2">
-              <div class="trail-dots">
-                <span class="wild-dot" data-wild-idx="1">🤠</span>
-                <span class="wild-dot" data-wild-idx="2">🤠</span>
-                <span class="wild-dot" data-wild-idx="3">🤠</span>
-              </div>
-              <div class="trail-milestone" data-wild-idx="4">
-                <span class="milestone-mult">2×</span>
-                <span class="milestone-spins">+10 SPINS</span>
-              </div>
+        <!-- Authentic Stitched Cowboy-Leather 12-Slot Fisherman Progress Belt (Visible ONLY in Free Spins!) -->
+        <div id="freespins-trail-bar" class="freespins-trail-bar leather-progress-belt hidden">
+          <span class="belt-rivet" aria-hidden="true">★</span>
+          <div class="belt-slots-row">
+            <div class="belt-slot belt-fisherman" data-wild-idx="1"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="2"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="3"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-milestone" data-wild-idx="4" data-milestone-level="2">
+              <span class="belt-ms-top">+10</span>
+              <span class="belt-ms-mid">FREE<br/>SPINS</span>
+              <span class="belt-ms-mult">×2</span>
             </div>
 
-            <!-- Level 2 -> Level 3 (3x) -->
-            <div class="trail-segment" data-level="3">
-              <div class="trail-dots">
-                <span class="wild-dot" data-wild-idx="5">🤠</span>
-                <span class="wild-dot" data-wild-idx="6">🤠</span>
-                <span class="wild-dot" data-wild-idx="7">🤠</span>
-              </div>
-              <div class="trail-milestone" data-wild-idx="8">
-                <span class="milestone-mult">3×</span>
-                <span class="milestone-spins">+10 SPINS</span>
-              </div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="5"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="6"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="7"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-milestone" data-wild-idx="8" data-milestone-level="3">
+              <span class="belt-ms-top">+10</span>
+              <span class="belt-ms-mid">FREE<br/>SPINS</span>
+              <span class="belt-ms-mult">×3</span>
             </div>
 
-            <!-- Level 3 -> Level 4 (10x) -->
-            <div class="trail-segment" data-level="4">
-              <div class="trail-dots">
-                <span class="wild-dot" data-wild-idx="9">🤠</span>
-                <span class="wild-dot" data-wild-idx="10">🤠</span>
-                <span class="wild-dot" data-wild-idx="11">🤠</span>
-              </div>
-              <div class="trail-milestone milestone-max" data-wild-idx="12">
-                <span class="milestone-mult">10×</span>
-                <span class="milestone-spins">+10 SPINS</span>
-              </div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="9"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="10"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-fisherman" data-wild-idx="11"><img src="assets/images/symbols/wild_fisherman_bonus.png" alt="" /></div>
+            <div class="belt-slot belt-milestone belt-milestone-max" data-wild-idx="12" data-milestone-level="4">
+              <span class="belt-ms-top">+10</span>
+              <span class="belt-ms-mid">FREE<br/>SPINS</span>
+              <span class="belt-ms-mult">×10</span>
             </div>
           </div>
         </div>
@@ -191,12 +194,23 @@
         </div>
       </div>
 
-      <!-- Center HUD: Win Readout & Status Ticker -->
+      <!-- Center HUD: Base Game Win/Status OR Authentic Bonus Mode Cumulative WIN + FREE SPINS LEFT -->
       <div class="hud-center">
         <div id="hud-status-line" class="hud-status-line">HOLD SPACE FOR TURBO SPIN</div>
         <div id="hud-win-box" class="hud-win-box hidden">
           <span class="win-box-label">WIN</span>
           <span id="hud-win-amount" class="win-box-amount">$0.00</span>
+        </div>
+
+        <div id="hud-bonus-display" class="hud-bonus-display hidden">
+          <div class="hud-bonus-win-row">
+            <span class="hud-bonus-win-label">WIN</span>
+            <span id="hud-bonus-win-value" class="hud-bonus-win-value">$0.00</span>
+          </div>
+          <div id="hud-bonus-sub-row" class="hud-bonus-sub-row">
+            <span id="hud-bonus-sub-label" class="hud-bonus-spins-label">FREE SPINS LEFT</span>
+            <span id="hud-bonus-spins-value" class="hud-bonus-spins-value">10</span>
+          </div>
         </div>
       </div>
 
@@ -280,7 +294,7 @@
         </div>
         <div class="mod-medallion" data-mod-id="MORE_FISHERMAN" title="More Wild Fishermen">
           <span class="medallion-plus">+</span>
-          <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman.png" alt="More Fishermen" />
+          <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman_bonus.png" alt="More Fishermen" />
         </div>
       </div>
 
@@ -336,7 +350,7 @@
             </div>
             <div class="poster-medallion" data-mod-id="MORE_FISHERMAN" title="More Wild Fishermen">
               <span class="medallion-plus">+</span>
-              <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman.png" alt="More Fishermen" />
+              <img class="medallion-img medallion-img-wild" src="assets/images/symbols/wild_fisherman_bonus.png" alt="More Fishermen" />
             </div>
           </div>
 
@@ -346,6 +360,30 @@
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Authentic Level-Up Retrigger Parchment Screen (CONGRATULATIONS! EXTRA 10 FREE SPINS / ARE NOW × 2) -->
+    <div id="bonus-retrigger-modal" class="overlay-modal bonus-poster-overlay hidden">
+      <div class="retrigger-poster-stack">
+        <div id="bonus-retrigger-card" class="bonus-poster-card retrigger-poster-card" role="button" tabindex="0" aria-label="Continue to Next Level">
+          <div class="poster-inner-frame retrigger-inner-frame">
+            <div class="poster-top-ribbon">CONGRATULATIONS!</div>
+            <div class="retrigger-spins-line">
+              <span>EXTRA</span>
+              <span id="retrigger-extra-spins" class="retrigger-big-white">10</span>
+              <span>FREE SPINS</span>
+            </div>
+            <div class="retrigger-portrait-frame">
+              <img src="assets/images/symbols/wild_fisherman_bonus.png" alt="Fisherman" />
+            </div>
+            <div class="retrigger-mult-line">
+              <span>ARE NOW</span>
+              <span id="retrigger-new-mult" class="retrigger-big-white">× 2</span>
+            </div>
+          </div>
+        </div>
+        <div class="retrigger-continue-hint">PRESS ANYWHERE TO CONTINUE</div>
       </div>
     </div>
 

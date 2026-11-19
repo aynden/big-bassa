@@ -82,7 +82,9 @@ export class SlotEngine {
 
       // Apply Free Spins pre-bonus modifiers & authentic Trail-Tension Pacing
       if (this.inFreeSpins) {
-        const wildsInSegment = this.wildsCollected % 4; // 0, 1, 2, or 3 (3 = 3/4 wilds "one away from retrigger!")
+        const segmentTarget = Math.min(12, this.currentLevel * 4);
+        const alreadyUnlockedNext = this.wildsCollected >= segmentTarget;
+        const wildsInSegment = alreadyUnlockedNext ? 4 : this.wildsCollected % 4; // 0, 1, 2, 3 (3 = one away!), or 4 (already unlocked)
         const wildsAlreadyInGrid = prevCols.reduce(
           (cnt, cCol) => cnt + cCol.filter(s => s.id === 'WILD').length,
           0
@@ -103,14 +105,16 @@ export class SlotEngine {
             w *= 1.24;
           }
 
-          // Prevent 2+ wilds on the same spin when already at 3/4 wilds
+          // Prevent 2+ wilds on the same spin when already near/past target
           if (wildsAlreadyInGrid >= 1) {
             w *= 0.35;
           }
 
-          // Trail-Tension Pacing:
-          // 1) Avoid dead 0/4 or 1/4 bonus rounds: boost Wild rate when at 0/4, 1/4, or 2/4 so players push to 3/4!
-          if (this.currentLevel === 1 && wildsInSegment < 3) {
+          if (alreadyUnlockedNext) {
+            // Player already secured the next level retrigger during this level's remaining spins; keep steady realistic cadence
+            w *= 0.78;
+          } else if (this.currentLevel === 1 && wildsInSegment < 3) {
+            // 1) Avoid dead 0/4 or 1/4 bonus rounds: boost Wild rate when at 0/4, 1/4, or 2/4 so players push to 3/4!
             if (this.wildsCollected === 0 && this.freeSpinsRemaining <= 8) {
               w *= 2.85; // Almost never go 0/4 (< 0.5%)
             } else if (this.wildsCollected === 1 && this.freeSpinsRemaining <= 6) {
@@ -126,7 +130,6 @@ export class SlotEngine {
           }
 
           // 2) At 3/4 wilds (1 away from retrigger!): create genuine high-tension sweat!
-          // Sometimes it hits on the last 1-2 spins for a clutch retrigger; other times it stays at 3/4 as a close call.
           if (wildsInSegment === 3) {
             if (this.currentLevel === 1) {
               w *= this.freeSpinsRemaining <= 2 ? 0.80 : 0.54;
@@ -429,64 +432,52 @@ export class SlotEngine {
     const totalLineWin = lineWins.reduce((sum, w) => sum + w.payout, 0);
 
     // 4. Evaluate Free Spins Fisherman Collection & Progressive Trail
+    // Authentic Big Bass Splash Rule:
+    // - All fish on this spin are collected using the CURRENT level's multiplier.
+    // - Each Fisherman Wild advances the top stitched-leather progress bar (up to 12).
+    // - Reaching 4, 8, or 12 wilds lights up the "+10 FREE SPINS ×2/×3/×10" milestone on the bar,
+    //   but the extra spins & higher multiplier ONLY activate once ALL remaining spins of the
+    //   current level finish (via advancePendingRetrigger() when freeSpinsRemaining hits 0).
     let fishCollection = null;
     if (this.inFreeSpins) {
       const wilds = this._findSymbolPositions(workingGrid, 'WILD');
       const fishes = this._findSymbolPositions(workingGrid, 'FISH');
 
       if (wilds.length > 0) {
-        const singleCollectBase = fishes.reduce(
-          (sum, pos) => sum + pos.cell.money.multiplier * totalBet,
-          0
+        const singleCollectBase = Number(
+          fishes.reduce((sum, pos) => sum + pos.cell.money.multiplier * totalBet, 0).toFixed(2)
         );
-        // Each Fisherman Wild collects all fish on screen, multiplied by current level multiplier!
-        const singleFishermanTotal = singleCollectBase * this.currentMultiplier;
-        const totalCollectWin = singleFishermanTotal * wilds.length;
+        // Each Fisherman Wild collects all fish on screen, multiplied by CURRENT active level multiplier!
+        const singleFishermanTotal = Number((singleCollectBase * this.currentMultiplier).toFixed(2));
+        const totalCollectWin = Number((singleFishermanTotal * wilds.length).toFixed(2));
+
+        const previousWilds = this.wildsCollected;
+        this.wildsCollected = Math.min(12, this.wildsCollected + wilds.length);
+
+        // Detect whether this spin newly crossed a 4/8/12 milestone on the leather progress belt
+        let milestoneUnlocked = null;
+        for (const lvl of TRAIL_LEVELS) {
+          if (lvl.wildsRequired > 0 && previousWilds < lvl.wildsRequired && this.wildsCollected >= lvl.wildsRequired) {
+            const extraSpins =
+              lvl.spinsAwarded + (this.activeModifiers.has('EXTRA_SPINS') ? 2 : 0);
+            milestoneUnlocked = {
+              level: lvl.level,
+              multiplier: lvl.multiplier,
+              extraSpins
+            };
+          }
+        }
 
         fishCollection = {
           wilds,
           fishes,
           levelMultiplier: this.currentMultiplier,
+          singleCollectBase,
           singleFishermanTotal,
-          totalCollectWin
-        };
-      }
-
-      // Advance Fisherman Wild Trail
-      let retriggerAward = null;
-      if (wilds.length > 0) {
-        const previousWilds = this.wildsCollected;
-        this.wildsCollected = Math.min(12, this.wildsCollected + wilds.length);
-
-        // Check if we crossed a 4-wild threshold (4, 8, or 12)
-        for (const lvl of TRAIL_LEVELS) {
-          if (lvl.level > this.currentLevel && this.wildsCollected >= lvl.wildsRequired) {
-            this.currentLevel = lvl.level;
-            this.currentMultiplier = lvl.multiplier;
-            const extraSpins =
-              lvl.spinsAwarded + (this.activeModifiers.has('EXTRA_SPINS') ? 2 : 0);
-            this.freeSpinsRemaining += extraSpins;
-            retriggerAward = {
-              newLevel: this.currentLevel,
-              newMultiplier: this.currentMultiplier,
-              extraSpins,
-              previousWilds,
-              newWilds: this.wildsCollected
-            };
-          }
-        }
-      }
-
-      if (fishCollection) {
-        fishCollection.retriggerAward = retriggerAward;
-      } else if (retriggerAward) {
-        fishCollection = {
-          wilds,
-          fishes: [],
-          levelMultiplier: this.currentMultiplier,
-          singleFishermanTotal: 0,
-          totalCollectWin: 0,
-          retriggerAward
+          totalCollectWin,
+          previousWilds,
+          newWilds: this.wildsCollected,
+          milestoneUnlocked
         };
       }
     }
@@ -571,6 +562,29 @@ export class SlotEngine {
       this.currentMultiplier = 1;
       this.wildsCollected = 0;
     }
+  }
+
+  /**
+   * Authentic Delayed Retrigger Activation:
+   * Called once freeSpinsRemaining hits 0 for the current level.
+   * If wildsCollected has reached the next level threshold (4 -> Lv2, 8 -> Lv3, 12 -> Lv4),
+   * advances one level at a time, activates its multiplier (2x / 3x / 10x), and awards the extra spins!
+   */
+  advancePendingRetrigger() {
+    const nextLvl = TRAIL_LEVELS.find(lvl => lvl.level === this.currentLevel + 1);
+    if (!nextLvl || this.wildsCollected < nextLvl.wildsRequired) {
+      return null;
+    }
+    this.currentLevel = nextLvl.level;
+    this.currentMultiplier = nextLvl.multiplier;
+    const extraSpins =
+      nextLvl.spinsAwarded + (this.activeModifiers.has('EXTRA_SPINS') ? 2 : 0);
+    this.freeSpinsRemaining = extraSpins;
+    return {
+      newLevel: this.currentLevel,
+      newMultiplier: this.currentMultiplier,
+      extraSpins
+    };
   }
 
   endFreeSpins() {
