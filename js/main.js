@@ -66,7 +66,11 @@ class BigBassSplashApp {
 
     this.updateHUD();
     this.updateTrailUI();
-    this.setStatus('HOLD SPACE FOR TURBO SPIN • PRESS SPIN TO FISH!');
+    this.setStatus(
+      window.innerWidth <= 860
+        ? 'PLACE YOUR BETS!'
+        : 'HOLD SPACE FOR TURBO SPIN • PRESS SPIN TO FISH!'
+    );
   }
 
   _cacheDOM() {
@@ -216,8 +220,35 @@ class BigBassSplashApp {
     window.addEventListener('pointerdown', unlockAudio);
     window.addEventListener('keydown', unlockAudio);
 
-    // Main Spin Button
+    // Main Spin Button (Tap to spin, or Hold 420ms on touch/mouse for Turbo Spin!)
+    let spinHoldTimer = null;
+    let spinHoldTriggered = false;
+    const clearSpinHold = () => {
+      if (spinHoldTimer) {
+        clearTimeout(spinHoldTimer);
+        spinHoldTimer = null;
+      }
+    };
+    this.dom.btnSpin.addEventListener('pointerdown', () => {
+      spinHoldTriggered = false;
+      clearSpinHold();
+      spinHoldTimer = setTimeout(() => {
+        spinHoldTriggered = true;
+        this.isTurbo = true;
+        this.dom.btnTurbo.classList.add('active');
+        this.audio.playButtonClick();
+        this.triggerSpin();
+      }, 420);
+    });
+    this.dom.btnSpin.addEventListener('pointerup', clearSpinHold);
+    this.dom.btnSpin.addEventListener('pointerleave', clearSpinHold);
+    this.dom.btnSpin.addEventListener('pointercancel', clearSpinHold);
     this.dom.btnSpin.addEventListener('click', () => {
+      clearSpinHold();
+      if (spinHoldTriggered) {
+        spinHoldTriggered = false;
+        return;
+      }
       this.audio.playButtonClick();
       this.triggerSpin();
     });
@@ -815,13 +846,19 @@ class BigBassSplashApp {
     const endY = slotRect.top + slotRect.height / 2;
     const endSize = Math.max(44, Math.min(68, Math.max(slotRect.width, slotRect.height)));
 
-    // Sweeping golden S-curve Bezier control points
+    // Sweeping golden S-curve Bezier control points (works both upward on Desktop and downward on Mobile Portrait!)
     const dx = endX - startX;
+    const dy = endY - startY;
     const bendSign = dx >= 0 ? -1 : 1;
-    const cp1X = startX + dx * 0.22 + bendSign * Math.min(130, Math.max(68, Math.abs(dx) * 0.35));
-    const cp1Y = startY - Math.max(60, (startY - endY) * 0.28);
-    const cp2X = endX - dx * 0.14 - bendSign * 42;
-    const cp2Y = endY + Math.max(36, (startY - endY) * 0.34);
+    const horizSpread = Math.min(vw * 0.24, Math.max(52, Math.abs(dx) * 0.35));
+    const cp1X = startX + dx * 0.22 + bendSign * horizSpread;
+    const cp1Y = dy < 0
+      ? startY - Math.max(56, Math.abs(dy) * 0.28)
+      : startY - Math.min(54, Math.max(26, Math.abs(dy) * 0.22));
+    const cp2X = endX - dx * 0.14 - bendSign * Math.min(44, horizSpread * 0.45);
+    const cp2Y = dy < 0
+      ? endY + Math.max(36, Math.abs(dy) * 0.34)
+      : endY - Math.max(28, Math.abs(dy) * 0.34);
 
     const cubicAt = u => {
       const m = 1 - u;
@@ -1028,15 +1065,22 @@ class BigBassSplashApp {
       this.dom.prebonusLassoOverlay.classList.remove('hidden');
     }
 
-    // Setup high-DPI underwater circular-swim canvas (1280x720)
+    // Setup high-DPI underwater circular-swim canvas (Portrait 720x940 on mobile phones, Landscape 1280x720 on desktop!)
     const canvas = this.dom.lassoCircleCanvas;
+    const isPortraitMobile = window.innerHeight > window.innerWidth && window.innerWidth <= 860;
+    if (canvas) {
+      canvas.width = isPortraitMobile ? 720 : 1280;
+      canvas.height = isPortraitMobile ? 940 : 720;
+    }
     const ctx = canvas ? canvas.getContext('2d') : null;
     let lassoRunning = true;
 
-    const CX = 700;
-    const CY = 468;
-    const RX = 325;
-    const RY = 104;
+    const canvasW = canvas ? canvas.width : 1280;
+    const canvasH = canvas ? canvas.height : 720;
+    const CX = isPortraitMobile ? canvasW * 0.5 : 700;
+    const CY = isPortraitMobile ? canvasH * 0.60 : 468;
+    const RX = isPortraitMobile ? canvasW * 0.36 : 325;
+    const RY = isPortraitMobile ? canvasH * 0.13 : 104;
 
     // 5 Modifier Fish + 1 Heavy Iron Anchor swimming evenly around the 3D perspective circle
     const modOrder = ['MORE_DYNAMITE', 'START_LEVEL_2', 'EXTRA_SPINS', 'MORE_FISH', 'MORE_FISHERMAN'];
@@ -1076,14 +1120,14 @@ class BigBassSplashApp {
 
     const splashRings = [];
     const ambientBubbles = Array.from({ length: 28 }, () => ({
-      x: 120 + Math.random() * 1080,
-      y: 120 + Math.random() * 580,
+      x: canvasW * 0.08 + Math.random() * canvasW * 0.84,
+      y: canvasH * 0.12 + Math.random() * canvasH * 0.80,
       r: 3 + Math.random() * 7,
       spd: 28 + Math.random() * 52,
       phase: Math.random() * Math.PI * 2
     }));
 
-    // Active rope animation state: { mode: 'drop'|'hoist', target, progress }
+    // Active rope animation state: { mode: 'twirl'|'tease'|'drop'|'tug'|'hoist', target, progress }
     let activeLasso = null;
 
     // Vector renderer for the iconic heavy rusty Iron Anchor orbiting in the circle
@@ -1204,9 +1248,10 @@ class BigBassSplashApp {
 
         // 2. Volumetric Sunbeams streaming down onto the sandy seabed
         ctx.save();
-        for (let i = 0; i < 6; i++) {
-          const rx = 260 + i * 165 + Math.sin(elapsedSec * 0.6 + i) * 28;
-          const beamGrad = ctx.createLinearGradient(rx, 40, rx + 70, 580);
+        const beamCount = isPortraitMobile ? 4 : 6;
+        for (let i = 0; i < beamCount; i++) {
+          const rx = w * (0.14 + (i / Math.max(1, beamCount - 1)) * 0.72) + Math.sin(elapsedSec * 0.6 + i) * 26;
+          const beamGrad = ctx.createLinearGradient(rx, 40, rx + 70, h * 0.85);
           beamGrad.addColorStop(0, 'rgba(200, 252, 255, 0.22)');
           beamGrad.addColorStop(0.65, 'rgba(255, 232, 165, 0.11)');
           beamGrad.addColorStop(1, 'rgba(255, 220, 130, 0)');
@@ -1214,21 +1259,22 @@ class BigBassSplashApp {
           ctx.beginPath();
           ctx.moveTo(rx - 38, 40);
           ctx.lineTo(rx + 42, 40);
-          ctx.lineTo(rx + 150, 620);
-          ctx.lineTo(rx - 70, 620);
+          ctx.lineTo(rx + 145, h * 0.88);
+          ctx.lineTo(rx - 68, h * 0.88);
           ctx.closePath();
           ctx.fill();
         }
         ctx.restore();
 
-        // 3. Sunlit Golden-Sandy Underwater Lake Floor (matching image_2.png!)
-        const sandGrad = ctx.createRadialGradient(CX, CY + 30, 40, CX, CY + 60, 560);
+        // 3. Sunlit Golden-Sandy Underwater Lake Floor
+        const sandRadius = isPortraitMobile ? w * 0.76 : 560;
+        const sandGrad = ctx.createRadialGradient(CX, CY + 30, 40, CX, CY + 60, sandRadius);
         sandGrad.addColorStop(0, 'rgba(246, 198, 138, 0.92)');
         sandGrad.addColorStop(0.55, 'rgba(196, 128, 74, 0.85)');
         sandGrad.addColorStop(1, 'rgba(54, 28, 16, 0.96)');
         ctx.fillStyle = sandGrad;
         ctx.beginPath();
-        ctx.ellipse(CX, CY + 95, 680, 235, 0, 0, Math.PI * 2);
+        ctx.ellipse(CX, CY + (isPortraitMobile ? 115 : 95), isPortraitMobile ? w * 0.78 : 680, isPortraitMobile ? h * 0.34 : 235, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Glowing sunlit caustic shimmer ring under the swimming fish circle
@@ -1252,7 +1298,7 @@ class BigBassSplashApp {
           b.y -= b.spd * dt;
           if (b.y < 52) {
             b.y = h - 20;
-            b.x = 120 + Math.random() * 1080;
+            b.x = w * 0.08 + Math.random() * w * 0.84;
           }
           const bx = b.x + Math.sin(elapsedSec * 2 + b.phase) * 8;
           ctx.beginPath();
@@ -1282,7 +1328,8 @@ class BigBassSplashApp {
           const depth = Math.sin(angle); // -1 (back of circle) .. +1 (front of circle)
           let sx = CX + Math.cos(angle) * RX;
           let sy = CY + depth * RY;
-          let sc = 0.74 + ((depth + 1) / 2) * 0.42; // 0.74 in back -> 1.16 in front
+          const sizeBoost = isPortraitMobile ? 1.12 : 1.0;
+          let sc = (0.74 + ((depth + 1) / 2) * 0.42) * sizeBoost;
           const swimDir = -Math.sin(angle) >= 0 ? 1 : -1;
 
           if (s.tugging) {
@@ -1290,13 +1337,13 @@ class BigBassSplashApp {
             const amp = s.isAnchor ? 6 : 12;
             sx = s.caughtX + Math.sin(now * (s.isAnchor ? 0.032 : 0.068)) * amp;
             sy = s.caughtY + Math.cos(now * 0.05) * (s.isAnchor ? 4 : 8) - (s.tugLift || 0) * 28;
-            sc = 1.12;
+            sc = 1.12 * sizeBoost;
           } else if (s.caught) {
             const p = s.hoistProgress;
             const ease = p * p * (3 - 2 * p);
             sx = s.caughtX + (CX - s.caughtX) * ease * 0.35;
             sy = s.caughtY + (-130 - s.caughtY) * ease;
-            sc = 1.12;
+            sc = 1.12 * sizeBoost;
           } else {
             s.caughtX = sx;
             s.caughtY = sy;
@@ -1368,8 +1415,10 @@ class BigBassSplashApp {
         if (activeLasso) {
           const topX = CX;
           const topY = 0;
-          const twirlX = CX + Math.cos(elapsedSec * 2.9) * 215;
-          const twirlY = 175 + Math.sin(elapsedSec * 3.4) * 34;
+          const twirlRx = isPortraitMobile ? w * 0.25 : 215;
+          const twirlYBase = isPortraitMobile ? h * 0.24 : 175;
+          const twirlX = CX + Math.cos(elapsedSec * 2.9) * twirlRx;
+          const twirlY = twirlYBase + Math.sin(elapsedSec * 3.4) * 34;
 
           let curX = twirlX;
           let curY = twirlY;

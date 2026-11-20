@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#021220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>Big Bass Splash™ — Photorealistic Slot Game</title>
   <meta name="description" content="Play Big Bass Splash photorealistic 5x3 casino slot game with Free Spins, 5 Pre-Bonus Modifiers, Fisherman Wild Collector, and Token Management." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -224,15 +227,18 @@
         <div class="spin-cluster">
           <button id="btn-bet-minus" class="bet-adjust-btn" type="button" aria-label="Decrease Bet">−</button>
 
-          <button id="btn-spin" class="pragmatic-spin-btn" type="button" aria-label="Spin Reels">
-            <svg class="spin-arrows-svg" viewBox="0 0 100 100">
-              <path d="M 50 10 A 40 40 0 0 1 88 38" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
-              <polygon points="92,43 79,37 89,27" fill="currentColor" />
-              <path d="M 50 90 A 40 40 0 0 1 12 62" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
-              <polygon points="8,57 21,63 11,73" fill="currentColor" />
-            </svg>
-            <span class="spin-center-icon">🎣</span>
-          </button>
+          <div class="spin-btn-wrap">
+            <span class="mobile-hold-turbo-hint">HOLD FOR TURBO</span>
+            <button id="btn-spin" class="pragmatic-spin-btn" type="button" aria-label="Spin Reels">
+              <svg class="spin-arrows-svg" viewBox="0 0 100 100">
+                <path d="M 50 10 A 40 40 0 0 1 88 38" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
+                <polygon points="92,43 79,37 89,27" fill="currentColor" />
+                <path d="M 50 90 A 40 40 0 0 1 12 62" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
+                <polygon points="8,57 21,63 11,73" fill="currentColor" />
+              </svg>
+              <span class="spin-center-icon">🎣</span>
+            </button>
+          </div>
 
           <button id="btn-bet-plus" class="bet-adjust-btn" type="button" aria-label="Increase Bet">+</button>
         </div>
